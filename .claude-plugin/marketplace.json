@@ -3,17 +3,17 @@
   "description": "Protect your coding agent experience. Clover catches missing security requirements before code is written — automatic STRIDE-style threat modeling on every plan, zero ceremony, zero interruption.",
   "owner": {
     "name": "Clover Security",
-    "email": "security@clover.com"
+    "email": "roy@clover.security"
   },
   "plugins": [
     {
       "name": "clover",
       "source": {
         "source": "url",
-        "url": "https://github.com/clover-security-public/clover-claude-plugin.git"
+        "url": "https://github.com/clover-security-public/agentic-security-marketplace.git"
       },
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
-      "version": "0.1.59"
+      "version": "0.1.61"
     }
   ]
 }

@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+# Serialize releases so two pushes to main can't race for the same tag.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Fail fast before mutating anything (version bump / commit) if the
+      # release artifacts are missing.
+      - name: Verify binaries present
+        run: |
+          for name in clover-hook-darwin-arm64 clover-hook-darwin-amd64 clover-hook-linux-amd64 clover-hook-linux-arm64; do
+            if [ ! -f "bin/$name" ]; then
+              echo "ERROR: bin/$name is missing — push binaries from the source repo before releasing" >&2
+              exit 1
+            fi
+          done
+
+      - name: Get current version
+        id: current
+        run: |
+          VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag exists
+        id: check
+        run: |
+          VERSION="${{ steps.current.outputs.version }}"
+          if git tag -l "v$VERSION" | grep -qxF "v$VERSION"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine bump type
+        id: bump
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          echo "type=patch" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version
+        id: next
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          VERSION="${{ steps.current.outputs.version }}"
+          BUMP="${{ steps.bump.outputs.type }}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          # Keep every plugin/marketplace manifest across all agent IDEs in lockstep.
+          # The version field lives at a different JSON path in each file.
+          jq --arg v "$NEW_VERSION" '.version = $v'            .claude-plugin/plugin.json      > tmp.json && mv tmp.json .claude-plugin/plugin.json
+          jq --arg v "$NEW_VERSION" '.plugins[0].version = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
+          jq --arg v "$NEW_VERSION" '.version = $v'            .cursor-plugin/plugin.json      > tmp.json && mv tmp.json .cursor-plugin/plugin.json
+          jq --arg v "$NEW_VERSION" '.metadata.version = $v'   .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
+
+      - name: Commit version bump
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/plugin.json .cursor-plugin/marketplace.json
+          # [skip ci] so this bump push does not trigger a second Release run
+          # that would race this one for the same tag.
+          git commit -m "chore: bump version to ${{ steps.next.outputs.version }} [skip ci]"
+          git push
+
+      - name: Resolve final version
+        id: final
+        run: |
+          if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
+            echo "version=${{ steps.next.outputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ steps.current.outputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create tag and release
+        run: |
+          VERSION="${{ steps.final.outputs.version }}"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --generate-notes \
+            bin/clover-hook-*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

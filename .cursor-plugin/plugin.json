@@ -1,13 +1,13 @@
 {
   "name": "clover",
   "displayName": "Clover",
-  "version": "0.1.0",
-  "description": "Clover security plugin for Cursor — audits file-write tool calls via a preToolUse hook and logs them for security review.",
+  "version": "0.1.61",
+  "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
   "author": {
     "name": "Clover Security",
-    "email": "security@clover.com"
+    "email": "ely@clover.security"
   },
-  "homepage": "https://github.com/clover-security-public/clover-cursor-plugin",
-  "repository": "https://github.com/clover-security-public/clover-cursor-plugin",
-  "hooks": "./hooks/hooks.json"
+  "homepage": "https://github.com/clover-security-public/agentic-security-marketplace.git",
+  "repository": "https://github.com/clover-security-public/agentic-security-marketplace.git",
+  "hooks": "./cursor/hooks/hooks.json"
 }

@@ -1,0 +1,67 @@
+name: Validate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate plugin manifests
+        run: |
+          for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json; do
+            echo "Checking $manifest..."
+            jq empty "$manifest"
+            NAME=$(jq -r '.name' "$manifest")
+            VERSION=$(jq -r '.version' "$manifest")
+            echo "Plugin: $NAME v$VERSION"
+            [ -n "$NAME" ] && [ -n "$VERSION" ] && echo "Valid" || exit 1
+          done
+
+      - name: Validate marketplace manifests
+        run: |
+          for manifest in .claude-plugin/marketplace.json .cursor-plugin/marketplace.json; do
+            echo "Checking $manifest..."
+            jq empty "$manifest"
+            echo "Valid"
+          done
+
+      - name: Check versions are in sync across all agent IDEs
+        run: |
+          CLAUDE_PLUGIN=$(jq -r '.version' .claude-plugin/plugin.json)
+          CLAUDE_MARKET=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
+          CURSOR_PLUGIN=$(jq -r '.version' .cursor-plugin/plugin.json)
+          CURSOR_MARKET=$(jq -r '.metadata.version' .cursor-plugin/marketplace.json)
+          echo "claude/plugin=$CLAUDE_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/plugin=$CURSOR_PLUGIN cursor/marketplace=$CURSOR_MARKET"
+          if [ "$CLAUDE_PLUGIN" = "$CLAUDE_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_MARKET" ]; then
+            echo "Versions in sync: $CLAUDE_PLUGIN"
+          else
+            echo "ERROR: plugin/marketplace versions are out of sync — all four manifests must match" >&2
+            exit 1
+          fi
+
+      - name: Validate hooks manifests
+        run: |
+          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json; do
+            echo "Checking $manifest..."
+            jq empty "$manifest"
+            echo "Valid"
+          done
+
+      - name: Check scripts are executable
+        run: |
+          for f in claude/scripts/*.sh cursor/scripts/*.sh; do
+            if [ ! -x "$f" ]; then
+              echo "ERROR: $f is not executable"
+              exit 1
+            fi
+            echo "OK: $f"
+          done
+
+      - name: Shellcheck
+        run: |
+          sudo apt-get install -y shellcheck > /dev/null 2>&1
+          shellcheck claude/scripts/*.sh cursor/scripts/*.sh || true

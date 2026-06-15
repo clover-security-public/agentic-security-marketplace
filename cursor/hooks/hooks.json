@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/scripts/setup.sh"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/scripts/run-hook.sh log-prompt"
+      }
+    ],
+    "stop": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/scripts/run-hook.sh review-plan-stop",
+        "timeout": 300,
+        "loop_limit": 3
+      }
+    ]
+  }
+}

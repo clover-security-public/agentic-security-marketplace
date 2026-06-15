@@ -1,0 +1,13 @@
+{
+  "name": "clover",
+  "displayName": "Clover",
+  "version": "0.1.0",
+  "description": "Clover security plugin for Cursor — audits file-write tool calls via a preToolUse hook and logs them for security review.",
+  "author": {
+    "name": "Clover Security",
+    "email": "security@clover.com"
+  },
+  "homepage": "https://github.com/clover-security-public/clover-cursor-plugin",
+  "repository": "https://github.com/clover-security-public/clover-cursor-plugin",
+  "hooks": "./hooks/hooks.json"
+}

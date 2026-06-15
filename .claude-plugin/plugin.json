@@ -1,0 +1,34 @@
+{
+  "name": "clover",
+  "version": "0.1.59",
+  "description": "Protect your coding agent experience — Clover silently threat-models every plan, surfaces missing security requirements, and folds them in before code is written.",
+  "author": {
+    "name": "Clover Security"
+  },
+  "userConfig": {
+    "server_url": {
+      "title": "Clover API URL",
+      "description": "Clover API server URL (e.g. https://app.cloversec.io)",
+      "type": "string",
+      "sensitive": false
+    },
+    "auth_url": {
+      "title": "Auth URL",
+      "description": "Frontegg auth URL (e.g. https://clover.frontegg.com)",
+      "type": "string",
+      "sensitive": false
+    },
+    "client_id": {
+      "title": "Client ID",
+      "description": "API client ID (from Clover Settings > API Tokens)",
+      "type": "string",
+      "sensitive": false
+    },
+    "client_secret": {
+      "title": "Client Secret",
+      "description": "API client secret",
+      "type": "string",
+      "sensitive": true
+    }
+  }
+}

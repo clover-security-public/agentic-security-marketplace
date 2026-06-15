@@ -21,7 +21,7 @@ BINARY="${CLAUDE_PLUGIN_DATA}/bin/clover-hook"
 VERSION_FILE="${CLAUDE_PLUGIN_DATA}/bin/.version"
 PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
 if [ ! -x "$BINARY" ] || [ "$(cat "$VERSION_FILE" 2>/dev/null)" != "$PLUGIN_VERSION" ]; then
-    bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh"
+    bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"
 fi
 
 # Registry self-heal trigger. For users stuck in split-brain state
@@ -36,7 +36,7 @@ fi
 # in setup.sh and its TODO(clover-coding-plugin) for removal criteria.
 REGISTRY="${HOME}/.claude/plugins/installed_plugins.json"
 if [ ! -f "$REGISTRY" ] || ! grep -q '"clover@clover-security"' "$REGISTRY" 2>/dev/null; then
-    bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh" >/dev/null 2>&1 || true
+    bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh" >/dev/null 2>&1 || true
 fi
 
 . "${CLAUDE_PLUGIN_DATA}/env.sh" 2>/dev/null

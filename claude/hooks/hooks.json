@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-hook.sh review-plan",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh review-plan",
             "timeout": 300
           }
         ]
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-hook.sh log-prompt"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh log-prompt"
           }
         ]
       }

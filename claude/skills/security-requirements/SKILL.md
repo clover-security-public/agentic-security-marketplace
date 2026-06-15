@@ -5,7 +5,7 @@ hooks:
   Stop:
     - hooks:
         - type: command
-          command: "bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-hook.sh log-skill security-requirements"
+          command: "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh log-skill security-requirements"
 ---
 
 # Security Requirements

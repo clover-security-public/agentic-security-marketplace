@@ -32,7 +32,7 @@ Clover silently reviews every plan your AI coding agent makes, surfaces the secu
 ### Cursor
 
 1. Add the **Clover** marketplace from this repository. Make sure the Clover plugin is required.
-2. Run **`/clover-setup`** in chat and paste your `client_id` and `client_secret` when asked. It verifies them against Clover and saves them to this machine once — every future session is configured, no restart needed.
+2. Open **`~/.cursor/clover/env.sh`** (created on first launch), fill in your `client_id` and `client_secret`, and save.
 3. Start planning — Clover reviews every plan in the background.
 
 👉 **For detailed, screenshot-by-screenshot instructions, org-wide rollout, and troubleshooting, see the [Connecting Clover to Coding Agents guide](https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents).**

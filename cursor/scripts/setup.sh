@@ -57,6 +57,27 @@ if [ -n "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
   chmod 600 "$ENV_FILE" 2>/dev/null || true
 fi
 
+# No credentials anywhere and no env.sh yet (fresh Cursor-only machine): seed an
+# editable template so the user just opens this one file, fills in two values,
+# and saves — both hooks read it on every fire, so no restart and no command is
+# needed. Seeded only when absent, so a user-edited file is never clobbered (and
+# the persist block above already wrote it whenever creds were found). The auth/
+# server URLs are pre-filled with the Clover production defaults; the binary
+# treats the empty id/secret as "unconfigured" and fails open until they're set.
+if [ ! -f "$ENV_FILE" ]; then
+  {
+    echo '# Clover credentials — fill in CLIENT_ID and CLIENT_SECRET below, then save.'
+    echo '# Get them from the Clover web app > Settings > API Tokens.'
+    echo '# Both Clover hooks read this file on every run; no Cursor restart needed.'
+    echo 'export CAS_CLOVER_PLUGIN_CLIENT_ID='
+    echo 'export CAS_CLOVER_PLUGIN_CLIENT_SECRET='
+    echo '# Change these only for a non-default Clover environment.'
+    echo 'export CAS_CLOVER_PLUGIN_AUTH_URL=https://auth.cloversec.io'
+    echo 'export CAS_CLOVER_PLUGIN_SERVER_URL=https://api.cloversec.io'
+  } > "$ENV_FILE" 2>/dev/null || true
+  chmod 600 "$ENV_FILE" 2>/dev/null || true
+fi
+
 
 if ! command -v jq >/dev/null 2>&1; then
   printf '{"env":{"CLOVER_HOOK_BIN":"%s","CLAUDE_PLUGIN_ROOT":"%s","CLAUDE_PLUGIN_DATA":"%s"}}\n' "$BIN" "$DATA" "$DATA"

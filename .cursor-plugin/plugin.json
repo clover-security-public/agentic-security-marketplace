@@ -9,6 +9,5 @@
   },
   "homepage": "https://github.com/clover-security-public/agentic-security-marketplace.git",
   "repository": "https://github.com/clover-security-public/agentic-security-marketplace.git",
-  "hooks": "./cursor/hooks/hooks.json",
-  "commands": "./cursor/commands/"
+  "hooks": "./cursor/hooks/hooks.json"
 }

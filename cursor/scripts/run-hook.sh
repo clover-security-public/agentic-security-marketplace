@@ -56,11 +56,13 @@ if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then
 fi
 
 if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
+  # Creds live under the server entry's "auth" object as CLIENT_ID/CLIENT_SECRET
+  # (with snake/camel + bare-entry fallbacks); "url" gives the server origin.
   _jq_pick='
     def pick($o; $ks): reduce $ks[] as $k (null; if . == null then $o[$k] else . end);
-    (.mcpServers // {}) | to_entries | map(.value) | map(. as $v | {
-        id:     (pick($v;["client_id","clientId"]) // pick(($v.headers//{});["client_id","clientId"]) // pick(($v.env//{});["client_id","clientId"])),
-        secret: (pick($v;["client_secret","clientSecret"]) // pick(($v.headers//{});["client_secret","clientSecret"]) // pick(($v.env//{});["client_secret","clientSecret"])),
+    (.mcpServers // {}) | to_entries | map(.value) | map(. as $v | ($v.auth // {}) as $a | {
+        id:     (pick($a;["CLIENT_ID","client_id","clientId"]) // pick($v;["CLIENT_ID","client_id","clientId"])),
+        secret: (pick($a;["CLIENT_SECRET","client_secret","clientSecret"]) // pick($v;["CLIENT_SECRET","client_secret","clientSecret"])),
         url:    ($v.url // "")
       }) | map(select(.id != null and .secret != null)) | .[0] // empty
     | [ .id, .secret, .url ] | @tsv'

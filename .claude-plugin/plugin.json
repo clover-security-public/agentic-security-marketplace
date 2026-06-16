@@ -1,6 +1,6 @@
 {
   "name": "clover",
-  "version": "0.1.64",
+  "version": "0.1.65",
   "hooks": "./claude/hooks/hooks.json",
   "skills": "./claude/skills/",
   "description": "Protect your coding agent experience — Clover silently threat-models every plan, surfaces missing security requirements, and folds them in before code is written.",

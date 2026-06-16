@@ -55,10 +55,28 @@ if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then
   safe_default; exit 0
 fi
 
-# Creds: source the persisted env.sh on every fire (GUI Cursor has no shell
-# env; sessionStart env injection is best-effort). Mirrors the Claude plugin.
 if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
-  . "${CLAUDE_PLUGIN_DATA:-$HOME/.cursor/clover}/env.sh" 2>/dev/null || true
+  _jq_pick='
+    def pick($o; $ks): reduce $ks[] as $k (null; if . == null then $o[$k] else . end);
+    (.mcpServers // {}) | to_entries | map(.value) | map(. as $v | {
+        id:     (pick($v;["client_id","clientId"]) // pick(($v.headers//{});["client_id","clientId"]) // pick(($v.env//{});["client_id","clientId"])),
+        secret: (pick($v;["client_secret","clientSecret"]) // pick(($v.headers//{});["client_secret","clientSecret"]) // pick(($v.env//{});["client_secret","clientSecret"])),
+        url:    ($v.url // "")
+      }) | map(select(.id != null and .secret != null)) | .[0] // empty
+    | [ .id, .secret, .url ] | @tsv'
+  _mkt="$(cd "${CURSOR_PLUGIN_ROOT:-$(dirname "$0")/..}/../.." 2>/dev/null && pwd || true)"
+  for _mcp in "$_mkt"/*/*/.mcp.json "$HOME/.cursor/plugins/cache/"*/*/*/.mcp.json; do
+    [ -f "$_mcp" ] || continue
+    _row="$(jq -r "$_jq_pick" "$_mcp" 2>/dev/null)"
+    [ -n "$_row" ] || continue
+    CAS_CLOVER_PLUGIN_CLIENT_ID="$(printf '%s' "$_row" | cut -f1)"
+    CAS_CLOVER_PLUGIN_CLIENT_SECRET="$(printf '%s' "$_row" | cut -f2)"
+    _mcp_url="$(printf '%s' "$_row" | cut -f3)"
+    CAS_CLOVER_PLUGIN_SERVER_URL="$(printf '%s' "$_mcp_url" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/]+).*#\1#')"
+    CAS_CLOVER_PLUGIN_AUTH_URL="$(printf '%s' "$CAS_CLOVER_PLUGIN_SERVER_URL" | sed -E 's#://api\.#://auth.#')"
+    export CAS_CLOVER_PLUGIN_CLIENT_ID CAS_CLOVER_PLUGIN_CLIENT_SECRET CAS_CLOVER_PLUGIN_SERVER_URL CAS_CLOVER_PLUGIN_AUTH_URL
+    break
+  done
 fi
 
 session="$(printf '%s' "$IN" | jq -r '.conversation_id // .generation_id // empty' 2>/dev/null)"

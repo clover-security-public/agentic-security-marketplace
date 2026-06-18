@@ -1,0 +1,8 @@
+{
+  "name": "clover-appsec",
+  "version": "0.1.0",
+  "description": "Ask Clover about your application's security posture — security reviews, threats, requirements, controls, and secure design — from inside your coding agent. AppSec-facing companion to the clover developer plugin.",
+  "author": {
+    "name": "Clover Security"
+  }
+}

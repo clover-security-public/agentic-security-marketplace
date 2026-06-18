@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "clover-appsec": {
+      "type": "http",
+      "url": "${CAS_CLOVER_PLUGIN_STREAMING_URL:-https://streaming.cloversec.io}/streaming/mcp"
+    }
+  }
+}

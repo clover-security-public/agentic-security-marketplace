@@ -43,6 +43,20 @@ jobs:
             exit 1
           fi
 
+      # clover-appsec is versioned independently of clover, but its own two
+      # version locations (its manifest + the marketplace entry) must agree.
+      - name: Check clover-appsec version is in sync
+        run: |
+          APPSEC_PLUGIN=$(jq -r '.version' clover-appsec/.claude-plugin/plugin.json)
+          APPSEC_MARKET=$(jq -r '.plugins[] | select(.name == "clover-appsec") | .version' .claude-plugin/marketplace.json)
+          echo "clover-appsec/plugin=$APPSEC_PLUGIN marketplace=$APPSEC_MARKET"
+          if [ -n "$APPSEC_PLUGIN" ] && [ "$APPSEC_PLUGIN" = "$APPSEC_MARKET" ]; then
+            echo "clover-appsec versions in sync: $APPSEC_PLUGIN"
+          else
+            echo "ERROR: clover-appsec version is out of sync between its manifest and the marketplace entry" >&2
+            exit 1
+          fi
+
       - name: Validate hooks manifests
         run: |
           for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json; do

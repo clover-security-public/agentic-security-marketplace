@@ -18,7 +18,7 @@
     {
       "name": "clover-appsec",
       "source": "./clover-appsec",
-      "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language over a long-running Clover agent turn.",
+      "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
       "version": "0.1.0"
     }
   ]

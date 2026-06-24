@@ -6,6 +6,11 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh check-update",
+            "timeout": 30
           }
         ]
       }

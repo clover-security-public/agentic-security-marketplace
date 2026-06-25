@@ -6,6 +6,11 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh check-update",
+            "timeout": 30
           }
         ]
       }
@@ -20,7 +25,17 @@
             "timeout": 300
           }
         ]
-      }
+      },
+      {
+          "matcher": "Edit|Write|MultiEdit",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh should-review-plan",
+              "timeout": 300
+            }
+          ]
+        }
     ],
     "UserPromptSubmit": [
       {

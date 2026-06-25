@@ -195,6 +195,14 @@ case "$SUB" in
         stem="${f%.*}"  # x.plan.md -> x.plan, matching the binary's sidecarPath
         printf '%s\n' "$skips" > "${stem}.clover-skips.md" 2>/dev/null || true
         chmod 600 "${stem}.clover-skips.md" 2>/dev/null || true
+        # Now that the skips live in the sidecar, drop the markers and their
+        # "## Security skips" heading from the plan we forward, so the plan the
+        # server stores and shows stays clean — same as the Claude flow, where
+        # skips only ever live in the sidecar and never in the plan text.
+        plan="$(printf '%s\n' "$plan" \
+          | grep -vE '\[SKIP:[[:space:]]*[0-9]+' \
+          | grep -ivE '^[[:space:]]*#{2,}[[:space:]]+security[[:space:]]+skips[[:space:]]*$' \
+          2>/dev/null || true)"
       fi
       claude_in="$(jq -nc --arg s "$session" --arg c "$cwd" --arg p "$plan" --arg f "$f" \
         --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" --arg br "$GIT_BRANCH" --arg re "$GIT_REPO" --arg ru "$GIT_URL" \

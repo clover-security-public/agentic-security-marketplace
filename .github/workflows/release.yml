@@ -31,77 +31,83 @@ jobs:
             fi
           done
 
-      - name: Get current version
-        id: current
-        run: |
-          VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Check if tag exists
-        id: check
-        run: |
-          VERSION="${{ steps.current.outputs.version }}"
-          if git tag -l "v$VERSION" | grep -qxF "v$VERSION"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Determine bump type
-        id: bump
-        if: steps.check.outputs.exists == 'true'
-        run: |
-          echo "type=patch" >> "$GITHUB_OUTPUT"
-
-      - name: Bump version
-        id: next
-        if: steps.check.outputs.exists == 'true'
-        run: |
-          VERSION="${{ steps.current.outputs.version }}"
-          BUMP="${{ steps.bump.outputs.type }}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          case "$BUMP" in
-            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-            patch) PATCH=$((PATCH + 1)) ;;
-          esac
-          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-          # Keep every plugin/marketplace manifest across all agent IDEs in lockstep.
-          # The version field lives at a different JSON path in each file.
-          jq --arg v "$NEW_VERSION" '.version = $v'            .claude-plugin/plugin.json      > tmp.json && mv tmp.json .claude-plugin/plugin.json
-          jq --arg v "$NEW_VERSION" '.plugins[0].version = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
-          jq --arg v "$NEW_VERSION" '.version = $v'            .cursor-plugin/plugin.json      > tmp.json && mv tmp.json .cursor-plugin/plugin.json
-          jq --arg v "$NEW_VERSION" '.metadata.version = $v'   .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
-
-      - name: Commit version bump
-        if: steps.check.outputs.exists == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/plugin.json .cursor-plugin/marketplace.json
-          # [skip ci] so this bump push does not trigger a second Release run
-          # that would race this one for the same tag.
-          git commit -m "chore: bump version to ${{ steps.next.outputs.version }} [skip ci]"
-          git push
-
-      - name: Resolve final version
-        id: final
-        run: |
-          if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
-            echo "version=${{ steps.next.outputs.version }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=${{ steps.current.outputs.version }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create tag and release
-        run: |
-          VERSION="${{ steps.final.outputs.version }}"
-          git tag "v$VERSION"
-          git push origin "v$VERSION"
-          gh release create "v$VERSION" \
-            --title "v$VERSION" \
-            --generate-notes \
-            bin/clover-hook-*
+      # Each plugin is versioned and released independently:
+      #
+      #   clover         — the main plugin, kept in lockstep across all four
+      #                    Claude + Cursor manifests, released under the legacy
+      #                    "v<version>" tag with the hook binaries attached.
+      #   clover-appsec  — the "ask Clover" plugin, versioned on its own in its
+      #                    own manifest + the marketplace entry, released under
+      #                    "clover-appsec-v<version>" (skills-only, no binaries).
+      #
+      # For each plugin: if its current-version tag already exists, patch-bump
+      # and commit; then tag + cut a release for the resolved version. Matches
+      # the existing bump-on-push behaviour (the bump commit carries [skip ci]
+      # so it does not trigger a second, racing Release run).
+      - name: Release each plugin independently
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          tag_exists() { git tag -l "$1" | grep -qxF "$1"; }
+          next_patch() {
+            local major minor patch
+            IFS='.' read -r major minor patch <<< "$1"
+            echo "${major}.${minor}.$((patch + 1))"
+          }
+
+          BUMPED=false
+
+          # ---- clover (main) -------------------------------------------------
+          CLOVER_V=$(jq -r '.version' .claude-plugin/plugin.json)
+          if tag_exists "v$CLOVER_V"; then
+            CLOVER_V=$(next_patch "$CLOVER_V")
+            # The version field lives at a different JSON path in each manifest;
+            # keep all four in lockstep (validate.yml enforces this).
+            jq --arg v "$CLOVER_V" '.version = $v'            .claude-plugin/plugin.json      > tmp.json && mv tmp.json .claude-plugin/plugin.json
+            jq --arg v "$CLOVER_V" '.plugins[0].version = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
+            jq --arg v "$CLOVER_V" '.version = $v'            .cursor-plugin/plugin.json      > tmp.json && mv tmp.json .cursor-plugin/plugin.json
+            jq --arg v "$CLOVER_V" '.metadata.version = $v'   .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
+            git add .claude-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/plugin.json .cursor-plugin/marketplace.json
+            git commit -m "chore(clover): bump version to $CLOVER_V [skip ci]"
+            BUMPED=true
+          fi
+          CLOVER_TAG="v$CLOVER_V"
+
+          # ---- clover-appsec (ask Clover) ------------------------------------
+          APPSEC_V=$(jq -r '.version' clover-appsec/.claude-plugin/plugin.json)
+          if tag_exists "clover-appsec-v$APPSEC_V"; then
+            APPSEC_V=$(next_patch "$APPSEC_V")
+            jq --arg v "$APPSEC_V" '.version = $v' clover-appsec/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-appsec/.claude-plugin/plugin.json
+            jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-appsec") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
+            git add clover-appsec/.claude-plugin/plugin.json .claude-plugin/marketplace.json
+            git commit -m "chore(clover-appsec): bump version to $APPSEC_V [skip ci]"
+            BUMPED=true
+          fi
+          APPSEC_TAG="clover-appsec-v$APPSEC_V"
+
+          # Push all bump commits once.
+          if [ "$BUMPED" = true ]; then
+            git push
+          fi
+
+          # ---- tag + release each plugin at its resolved version -------------
+          if ! tag_exists "$CLOVER_TAG"; then
+            git tag "$CLOVER_TAG"
+            git push origin "$CLOVER_TAG"
+            gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --generate-notes bin/clover-hook-*
+          else
+            echo "Tag $CLOVER_TAG already exists — nothing to release for clover."
+          fi
+
+          if ! tag_exists "$APPSEC_TAG"; then
+            git tag "$APPSEC_TAG"
+            git push origin "$APPSEC_TAG"
+            gh release create "$APPSEC_TAG" --title "$APPSEC_TAG" --generate-notes
+          else
+            echo "Tag $APPSEC_TAG already exists — nothing to release for clover-appsec."
+          fi

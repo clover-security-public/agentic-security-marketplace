@@ -10,6 +10,7 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh check-update",
+            "async": true,
             "timeout": 30
           }
         ]

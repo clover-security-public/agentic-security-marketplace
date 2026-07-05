@@ -42,7 +42,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh log-prompt"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh log-prompt",
+            "async": true,
+            "timeout": 20
           }
         ]
       }

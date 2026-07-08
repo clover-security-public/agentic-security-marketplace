@@ -1,6 +1,6 @@
 ---
 name: ask-clover
-description: Ask Clover — a professional AppSec assistant — to review designs, model threats, discuss mitigations, and manage Clover's security resources (reviews, applications, threat models). Clover answers in natural language and may ask a follow-up or a yes/no confirmation before writing anything. Trigger when the user wants a security/design review, asks about threats, required controls, or security requirements for an app or feature, wants help designing something securely, wants to read or update Clover reviews/applications/threat models, or explicitly says "ask Clover". Calls the `ask_clover_agent` MCP tool from the clover-appsec plugin.
+description: Ask Clover — a professional AppSec assistant — to review designs, model threats, discuss mitigations, and manage Clover's security resources (reviews, applications, threat models). Clover answers in natural language and may ask a follow-up or a yes/no confirmation before writing anything. Trigger when the user wants a security/design review, asks about threats, required controls, or security requirements for an app or feature, wants help designing something securely, wants to read or update Clover reviews/applications/threat models, or explicitly says "ask Clover". Calls the `ask_clover_agent` MCP tool from the clover-for-security-teams plugin.
 ---
 
 # Ask Clover (ask_clover_agent)

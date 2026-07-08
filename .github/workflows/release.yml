@@ -33,12 +33,16 @@ jobs:
 
       # Each plugin is versioned and released independently:
       #
-      #   clover         — the main plugin, kept in lockstep across all four
-      #                    Claude + Cursor manifests, released under the legacy
-      #                    "v<version>" tag with the hook binaries attached.
-      #   clover-appsec  — the "ask Clover" plugin, versioned on its own in its
-      #                    own manifest + the marketplace entry, released under
-      #                    "clover-appsec-v<version>" (skills-only, no binaries).
+      #   clover                    — the main plugin, kept in lockstep across
+      #                               all four Claude + Cursor manifests,
+      #                               released under the legacy "v<version>"
+      #                               tag with the hook binaries attached.
+      #   clover-for-security-teams — the "ask Clover" plugin (formerly
+      #                               clover-appsec), versioned on its own in
+      #                               its own manifest + the marketplace entry,
+      #                               released under
+      #                               "clover-for-security-teams-v<version>"
+      #                               (skills-only, no binaries).
       #
       # For each plugin: if its current-version tag already exists, patch-bump
       # and commit; then tag + cut a release for the resolved version. Matches
@@ -78,17 +82,17 @@ jobs:
           fi
           CLOVER_TAG="v$CLOVER_V"
 
-          # ---- clover-appsec (ask Clover) ------------------------------------
-          APPSEC_V=$(jq -r '.version' clover-appsec/.claude-plugin/plugin.json)
-          if tag_exists "clover-appsec-v$APPSEC_V"; then
+          # ---- clover-for-security-teams (ask Clover) ------------------------
+          APPSEC_V=$(jq -r '.version' clover-for-security-teams/.claude-plugin/plugin.json)
+          if tag_exists "clover-for-security-teams-v$APPSEC_V"; then
             APPSEC_V=$(next_patch "$APPSEC_V")
-            jq --arg v "$APPSEC_V" '.version = $v' clover-appsec/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-appsec/.claude-plugin/plugin.json
-            jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-appsec") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
-            git add clover-appsec/.claude-plugin/plugin.json .claude-plugin/marketplace.json
-            git commit -m "chore(clover-appsec): bump version to $APPSEC_V [skip ci]"
+            jq --arg v "$APPSEC_V" '.version = $v' clover-for-security-teams/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-for-security-teams/.claude-plugin/plugin.json
+            jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-for-security-teams") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
+            git add clover-for-security-teams/.claude-plugin/plugin.json .claude-plugin/marketplace.json
+            git commit -m "chore(clover-for-security-teams): bump version to $APPSEC_V [skip ci]"
             BUMPED=true
           fi
-          APPSEC_TAG="clover-appsec-v$APPSEC_V"
+          APPSEC_TAG="clover-for-security-teams-v$APPSEC_V"
 
           # Push all bump commits once.
           if [ "$BUMPED" = true ]; then
@@ -109,5 +113,5 @@ jobs:
             git push origin "$APPSEC_TAG"
             gh release create "$APPSEC_TAG" --title "$APPSEC_TAG" --generate-notes
           else
-            echo "Tag $APPSEC_TAG already exists — nothing to release for clover-appsec."
+            echo "Tag $APPSEC_TAG already exists — nothing to release for clover-for-security-teams."
           fi

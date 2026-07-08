@@ -43,23 +43,24 @@ jobs:
             exit 1
           fi
 
-      # clover-appsec is versioned independently of clover, but its own two
-      # version locations (its manifest + the marketplace entry) must agree.
-      - name: Check clover-appsec version is in sync
+      # clover-for-security-teams is versioned independently of clover, but its
+      # own two version locations (its manifest + the marketplace entry) must
+      # agree.
+      - name: Check clover-for-security-teams version is in sync
         run: |
-          APPSEC_PLUGIN=$(jq -r '.version' clover-appsec/.claude-plugin/plugin.json)
-          APPSEC_MARKET=$(jq -r '.plugins[] | select(.name == "clover-appsec") | .version' .claude-plugin/marketplace.json)
-          echo "clover-appsec/plugin=$APPSEC_PLUGIN marketplace=$APPSEC_MARKET"
+          APPSEC_PLUGIN=$(jq -r '.version' clover-for-security-teams/.claude-plugin/plugin.json)
+          APPSEC_MARKET=$(jq -r '.plugins[] | select(.name == "clover-for-security-teams") | .version' .claude-plugin/marketplace.json)
+          echo "clover-for-security-teams/plugin=$APPSEC_PLUGIN marketplace=$APPSEC_MARKET"
           if [ -n "$APPSEC_PLUGIN" ] && [ "$APPSEC_PLUGIN" = "$APPSEC_MARKET" ]; then
-            echo "clover-appsec versions in sync: $APPSEC_PLUGIN"
+            echo "clover-for-security-teams versions in sync: $APPSEC_PLUGIN"
           else
-            echo "ERROR: clover-appsec version is out of sync between its manifest and the marketplace entry" >&2
+            echo "ERROR: clover-for-security-teams version is out of sync between its manifest and the marketplace entry" >&2
             exit 1
           fi
 
       - name: Validate hooks manifests
         run: |
-          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json; do
+          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json clover-for-security-teams/hooks/hooks.json; do
             echo "Checking $manifest..."
             jq empty "$manifest"
             echo "Valid"
@@ -67,7 +68,7 @@ jobs:
 
       - name: Check scripts are executable
         run: |
-          for f in claude/scripts/*.sh cursor/scripts/*.sh; do
+          for f in claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh; do
             if [ ! -x "$f" ]; then
               echo "ERROR: $f is not executable"
               exit 1
@@ -78,4 +79,4 @@ jobs:
       - name: Shellcheck
         run: |
           sudo apt-get install -y shellcheck > /dev/null 2>&1
-          shellcheck claude/scripts/*.sh cursor/scripts/*.sh || true
+          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh || true

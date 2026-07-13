@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "clover-for-developers": {
+      "type": "http",
+      "url": "${CAS_CLOVER_PLUGIN_STREAMING_URL:-https://streaming.cloversec.io}/streaming/developer/mcp"
+    }
+  }
+}

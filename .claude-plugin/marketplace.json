@@ -20,6 +20,12 @@
       "source": "./clover-for-security-teams",
       "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
       "version": "0.1.4"
+    },
+    {
+      "name": "clover-for-developers",
+      "source": "./clover-for-developers",
+      "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design review (by its link), and read back the reviews you have access to — answered in natural language.",
+      "version": "0.1.1"
     }
   ]
 }

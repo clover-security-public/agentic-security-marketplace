@@ -58,9 +58,23 @@ jobs:
             exit 1
           fi
 
+      # clover-for-developers is versioned independently of clover, but its own
+      # two version locations (its manifest + the marketplace entry) must agree.
+      - name: Check clover-for-developers version is in sync
+        run: |
+          DEV_PLUGIN=$(jq -r '.version' clover-for-developers/.claude-plugin/plugin.json)
+          DEV_MARKET=$(jq -r '.plugins[] | select(.name == "clover-for-developers") | .version' .claude-plugin/marketplace.json)
+          echo "clover-for-developers/plugin=$DEV_PLUGIN marketplace=$DEV_MARKET"
+          if [ -n "$DEV_PLUGIN" ] && [ "$DEV_PLUGIN" = "$DEV_MARKET" ]; then
+            echo "clover-for-developers versions in sync: $DEV_PLUGIN"
+          else
+            echo "ERROR: clover-for-developers version is out of sync between its manifest and the marketplace entry" >&2
+            exit 1
+          fi
+
       - name: Validate hooks manifests
         run: |
-          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json clover-for-security-teams/hooks/hooks.json; do
+          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json clover-for-security-teams/hooks/hooks.json clover-for-developers/hooks/hooks.json; do
             echo "Checking $manifest..."
             jq empty "$manifest"
             echo "Valid"
@@ -68,7 +82,7 @@ jobs:
 
       - name: Check scripts are executable
         run: |
-          for f in claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh; do
+          for f in claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh; do
             if [ ! -x "$f" ]; then
               echo "ERROR: $f is not executable"
               exit 1
@@ -79,4 +93,4 @@ jobs:
       - name: Shellcheck
         run: |
           sudo apt-get install -y shellcheck > /dev/null 2>&1
-          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh || true
+          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh || true

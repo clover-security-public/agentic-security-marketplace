@@ -1,6 +1,6 @@
 ---
 name: ask-clover-developer
-description: Clover's security assistant for developers — kick off security reviews on your work and read back reviews you have access to, answered in natural language. AUTO-TRIGGER this skill (do not wait for a slash command) whenever the developer wants to create or run a review, security review, design review, or security assessment; pastes or mentions a link / PR / doc / design and wants it reviewed or checked for security; asks whether their change is secure or what the security requirements are; or asks about the status of their reviews — e.g. "run a security review on this", "review this design", "is this change secure?", "here's the PR, any security concerns?", "do I have any security reviews?", "what's the status of my review?". Calls the `developer_clover_agent` MCP tool from the clover-for-developers plugin.
+description: Clover's security assistant for developers — kick off security reviews on your work and read back reviews you have access to, answered in natural language. AUTO-TRIGGER this skill (do not wait for a slash command) whenever the developer wants to create or run a review, security review, or security assessment; pastes or mentions a link to a doc or design and wants it reviewed or checked for security; asks whether their change is secure or what the security requirements are; or asks about the status of their reviews — e.g. "run a security review on this", "review this design", "do I have any security reviews?", "what's the status of my review?". Calls the `developer_clover_agent` MCP tool from the clover-for-developers plugin.
 ---
 
 # Ask Clover (developer_clover_agent)
@@ -8,8 +8,8 @@ description: Clover's security assistant for developers — kick off security re
 `developer_clover_agent` is your interface to **Clover's developer security assistant**. It lets a
 developer, from inside their coding agent:
 
-1. **Run security work on the change they're building** — kick off a security / design review,
-   get a security assessment of a link (PR, design doc, ticket), and surface the security
+1. **Run security work on the change they're building** — kick off a security review,
+   get a security assessment of a link (design doc, ticket), and surface the security
    requirements and threats that apply.
 2. **Read back the reviews they have access to** — status and results of reviews tied to their
    work.
@@ -27,17 +27,17 @@ they can see — ground it in Clover rather than answering from your own reasoni
 When the developer decides to **act on findings — implement a fix, add a control, mitigate a
 threat** — do not design the security fix from your own reasoning. The AppSec expertise is
 Clover's. Call `developer_clover_agent` again (same `chat_id`) and ask for remediation guidance on
-the specific finding *before* you write the code, then implement grounded in what Clover returns.
+the specific finding *before* you are changing the design or trying to write a code, then implement grounded in what Clover returns.
 Clover's findings already carry remediation detail (a threat's countermeasures and mitigation
 reasoning, a requirement's implementation example and test case) — use it, and ask Clover to go
 deeper when the finding needs it. A one-shot "what are the findings?" is not enough context to
 implement securely; re-consult Clover as you build.
 
-A finding is not always a code fix. **When the review was created from a design document, default
+A finding is not always a code fix. **The review was created from a design document, default
 to fixing it in the design document** — that is the right remediation, not a code change. Ask the
 developer to make the change in the reviewed design document (offer to help them revise it); reach
-for a code change only when that is genuinely the better fix. For a code or PR review, address the
-finding in code. Once a threat is covered — in the design document or in code — tell Clover to
+for a code change only when that is genuinely the better fix.
+Once a threat is covered — in the design document or in code — tell Clover to
 record it as **covered by design** and explain what changed.
 
 ## Recorded responses are pending — never open a new review to clear them
@@ -53,20 +53,6 @@ review cannot be reopened on the same document. To move a pending finding forwar
 **mitigation request** so the security team can confirm it; ask Clover how and relay what it
 returns. Do not invent the new-review workaround, and do not surface it to the developer as an
 option.
-
-## Auto-trigger — no slash command required
-
-Invoke this skill on intent, not on a command. If the developer says any of the following (or
-similar), call `developer_clover_agent` **without** being asked to run `/developer_clover_agent`:
-
-- "create / run / start a **review** / **security review** / **design review** / **security
-  assessment**" — for a change, feature, or design they're working on.
-- Pastes or references a **link / PR / commit / design doc / ticket** and wants it reviewed or
-  checked for security ("here's the link, any security issues?", "assess this for security").
-- Asks whether their change is **secure**, what **security requirements / controls / threats**
-  apply to it, or how to build it securely.
-- Asks about **their reviews** — "do I have any security reviews?", "what's the status of my
-  review?", "show me my review results".
 
 ## Your role: an invisible tunnel
 
@@ -129,7 +115,6 @@ instead of spending a full `developer_clover_agent` turn:
 ```jsonc
 {
   "analysis_complete": true,  // findings and summary are final only when true
-  "review_status": "...",     // the review's lifecycle status
   "security_review_id": "..."
 }
 ```

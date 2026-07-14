@@ -60,7 +60,7 @@ if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
   # entry named "Clover MCP" — no other entry is ever consulted. CLIENT_ID /
   # CLIENT_SECRET / AUTH_URL live under the entry's "auth" object (with
   # snake/camel + bare-entry fallbacks); "url" gives the server origin. When
-  # the entry carries no auth url, derive it from the server url (api.->auth.).
+  # the entry carries no auth url, default to https://auth.cloversec.io.
   _mcp="$HOME/.cursor/mcp.json"
   _jq_pick='
     def pick($o; $ks): reduce $ks[] as $k (null; if . == null then $o[$k] else . end);
@@ -88,7 +88,7 @@ if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
     _mcp_url="$(printf '%s' "$_row" | cut -f4)"
     CAS_CLOVER_PLUGIN_SERVER_URL="$(printf '%s' "$_mcp_url" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/]+).*#\1#')"
     if [ -z "$CAS_CLOVER_PLUGIN_AUTH_URL" ]; then
-      CAS_CLOVER_PLUGIN_AUTH_URL="$(printf '%s' "$CAS_CLOVER_PLUGIN_SERVER_URL" | sed -E 's#://api\.#://auth.#')"
+      CAS_CLOVER_PLUGIN_AUTH_URL="https://auth.cloversec.io"
     fi
     export CAS_CLOVER_PLUGIN_CLIENT_ID CAS_CLOVER_PLUGIN_CLIENT_SECRET CAS_CLOVER_PLUGIN_SERVER_URL CAS_CLOVER_PLUGIN_AUTH_URL
   fi

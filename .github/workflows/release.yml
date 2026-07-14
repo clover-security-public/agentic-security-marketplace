@@ -40,10 +40,15 @@ jobs:
       #                    own manifest + the marketplace entry, released under
       #                    "clover-appsec-v<version>" (skills-only, no binaries).
       #
-      # For each plugin: if its current-version tag already exists, patch-bump
-      # and commit; then tag + cut a release for the resolved version. Matches
-      # the existing bump-on-push behaviour (the bump commit carries [skip ci]
-      # so it does not trigger a second, racing Release run).
+      # For each plugin we release ONLY when that plugin's own content changed
+      # since its last release tag — so a push that touches one plugin never
+      # bumps or re-releases the other. Per plugin:
+      #   * current-version tag missing  -> the version was bumped manually (or
+      #     this is the first release); cut it as-is, no auto-bump.
+      #   * tag present + content changed -> patch-bump, commit [skip ci], tag
+      #     and release the new version.
+      #   * tag present + no change       -> skip entirely.
+      # Bump commits carry [skip ci] so they never trigger a second Release run.
       - name: Release each plugin independently
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,18 +59,40 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           tag_exists() { git tag -l "$1" | grep -qxF "$1"; }
-          next_patch() {
-            local major minor patch
-            IFS='.' read -r major minor patch <<< "$1"
-            echo "${major}.${minor}.$((patch + 1))"
+
+          # Patch-bump, skipping any version whose tag already exists so a stale
+          # tag left by an earlier run can never wedge the release.
+          next_free_patch() {
+            local prefix=$1 major minor patch
+            IFS='.' read -r major minor patch <<< "$2"
+            while :; do
+              patch=$((patch + 1))
+              tag_exists "${prefix}${major}.${minor}.${patch}" || break
+            done
+            echo "${major}.${minor}.${patch}"
+          }
+
+          # True when any of the given paths differ between <ref> and HEAD.
+          changed_since() {
+            local ref=$1
+            shift
+            ! git diff --quiet "$ref" HEAD -- "$@"
           }
 
           BUMPED=false
 
           # ---- clover (main) -------------------------------------------------
+          # Content that ships in the clover plugin across Claude + Cursor. The
+          # shared .claude-plugin/marketplace.json is deliberately excluded so an
+          # edit to the clover-appsec entry inside it can't trigger a clover
+          # release (its clover entry is kept in lockstep via the bump below).
+          CLOVER_PATHS=(claude cursor bin .claude-plugin/plugin.json .cursor-plugin)
           CLOVER_V=$(jq -r '.version' .claude-plugin/plugin.json)
-          if tag_exists "v$CLOVER_V"; then
-            CLOVER_V=$(next_patch "$CLOVER_V")
+          CLOVER_RELEASE=false
+          if ! tag_exists "v$CLOVER_V"; then
+            CLOVER_RELEASE=true
+          elif changed_since "v$CLOVER_V" "${CLOVER_PATHS[@]}"; then
+            CLOVER_V=$(next_free_patch "v" "$CLOVER_V")
             # The version field lives at a different JSON path in each manifest;
             # keep all four in lockstep (validate.yml enforces this).
             jq --arg v "$CLOVER_V" '.version = $v'            .claude-plugin/plugin.json      > tmp.json && mv tmp.json .claude-plugin/plugin.json
@@ -75,18 +102,31 @@ jobs:
             git add .claude-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/plugin.json .cursor-plugin/marketplace.json
             git commit -m "chore(clover): bump version to $CLOVER_V [skip ci]"
             BUMPED=true
+            CLOVER_RELEASE=true
+          else
+            echo "clover: no content changes since v$CLOVER_V — skipping."
           fi
           CLOVER_TAG="v$CLOVER_V"
 
           # ---- clover-appsec (ask Clover) ------------------------------------
+          # Everything the clover-appsec plugin ships lives under clover-appsec/
+          # (its own manifest included); the shared marketplace.json is excluded
+          # for the same reason as above.
+          APPSEC_PATHS=(clover-appsec)
           APPSEC_V=$(jq -r '.version' clover-appsec/.claude-plugin/plugin.json)
-          if tag_exists "clover-appsec-v$APPSEC_V"; then
-            APPSEC_V=$(next_patch "$APPSEC_V")
+          APPSEC_RELEASE=false
+          if ! tag_exists "clover-appsec-v$APPSEC_V"; then
+            APPSEC_RELEASE=true
+          elif changed_since "clover-appsec-v$APPSEC_V" "${APPSEC_PATHS[@]}"; then
+            APPSEC_V=$(next_free_patch "clover-appsec-v" "$APPSEC_V")
             jq --arg v "$APPSEC_V" '.version = $v' clover-appsec/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-appsec/.claude-plugin/plugin.json
             jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-appsec") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
             git add clover-appsec/.claude-plugin/plugin.json .claude-plugin/marketplace.json
             git commit -m "chore(clover-appsec): bump version to $APPSEC_V [skip ci]"
             BUMPED=true
+            APPSEC_RELEASE=true
+          else
+            echo "clover-appsec: no content changes since clover-appsec-v$APPSEC_V — skipping."
           fi
           APPSEC_TAG="clover-appsec-v$APPSEC_V"
 
@@ -95,19 +135,15 @@ jobs:
             git push
           fi
 
-          # ---- tag + release each plugin at its resolved version -------------
-          if ! tag_exists "$CLOVER_TAG"; then
+          # ---- tag + release only the plugins that have something to ship ----
+          if [ "$CLOVER_RELEASE" = true ] && ! tag_exists "$CLOVER_TAG"; then
             git tag "$CLOVER_TAG"
             git push origin "$CLOVER_TAG"
             gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --generate-notes bin/clover-hook-*
-          else
-            echo "Tag $CLOVER_TAG already exists — nothing to release for clover."
           fi
 
-          if ! tag_exists "$APPSEC_TAG"; then
+          if [ "$APPSEC_RELEASE" = true ] && ! tag_exists "$APPSEC_TAG"; then
             git tag "$APPSEC_TAG"
             git push origin "$APPSEC_TAG"
             gh release create "$APPSEC_TAG" --title "$APPSEC_TAG" --generate-notes
-          else
-            echo "Tag $APPSEC_TAG already exists — nothing to release for clover-appsec."
           fi

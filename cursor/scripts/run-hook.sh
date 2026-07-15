@@ -56,40 +56,35 @@ if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then
 fi
 
 if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
-  # Creds come exclusively from the user's ~/.cursor/mcp.json, from the server
-  # entry named "Clover MCP" — no other entry is ever consulted. CLIENT_ID /
-  # CLIENT_SECRET / AUTH_URL live under the entry's "auth" object (with
-  # snake/camel + bare-entry fallbacks); "url" gives the server origin. When
-  # the entry carries no auth url, default to https://auth.cloversec.io.
-  _mcp="$HOME/.cursor/mcp.json"
-  _jq_pick='
+  # Creds come from the "Clover MCP" server entry, which may live in the user's
+  # own ~/.cursor/mcp.json or in any plugin's bundled .mcp.json (how the
+  # team-pushed clover-mcp plugin ships them). Scan every mcp.json / .mcp.json
+  # under ~/.cursor and take the first "Clover MCP" entry with a non-empty client
+  # id AND secret; entries with missing/blank creds are skipped so the search
+  # keeps going. CLIENT_ID/CLIENT_SECRET/AUTH_URL live under "auth" (snake/camel/
+  # bare fallbacks); "url" is the server origin; no auth url -> auth.cloversec.io.
+  _pick='
     def pick($o; $ks): reduce $ks[] as $k (null; if . == null then $o[$k] else . end);
     ((.mcpServers // {})["Clover MCP"] // empty) | . as $v | ($v.auth // {}) as $a | {
         id:     (pick($a;["CLIENT_ID","client_id","clientId"]) // pick($v;["CLIENT_ID","client_id","clientId"])),
         secret: (pick($a;["CLIENT_SECRET","client_secret","clientSecret"]) // pick($v;["CLIENT_SECRET","client_secret","clientSecret"])),
         auth:   (pick($a;["AUTH_URL","auth_url","authUrl"]) // pick($v;["AUTH_URL","auth_url","authUrl"]) // ""),
         url:    ($v.url // "")
-      } | select(.id != null and .secret != null)
-    | [ .id, .secret, .auth, .url ] | @tsv'
+      } | select((.id // "") != "" and (.secret // "") != "") | [ .id, .secret, .auth, .url ] | @tsv'
   _row=""
-  if [ -f "$_mcp" ]; then
-    _row="$(jq -r "$_jq_pick" "$_mcp" 2>/dev/null)"
-    if [ -z "$_row" ]; then
-      # Cursor accepts JSONC here (// comments); jq does not. Strip line
-      # comments — only where // starts the line or follows whitespace, so
-      # https:// inside string values survives — and retry.
-      _row="$(sed -E 's@^[[:space:]]*//.*$@@; s@[[:space:]]//.*$@@' "$_mcp" 2>/dev/null | jq -r "$_jq_pick" 2>/dev/null)"
-    fi
-  fi
+  while IFS= read -r _mcp; do
+    # jq can't parse Cursor's JSONC; retry once with // line-comments stripped.
+    _row="$(jq -r "$_pick" "$_mcp" 2>/dev/null)"
+    [ -n "$_row" ] || _row="$(sed -E 's@^[[:space:]]*//.*$@@; s@[[:space:]]//.*$@@' "$_mcp" | jq -r "$_pick" 2>/dev/null)"
+    [ -n "$_row" ] && break
+  done < <(find "$HOME/.cursor" -type f \( -name 'mcp.json' -o -name '.mcp.json' \) 2>/dev/null | sort)
   if [ -n "$_row" ]; then
     CAS_CLOVER_PLUGIN_CLIENT_ID="$(printf '%s' "$_row" | cut -f1)"
     CAS_CLOVER_PLUGIN_CLIENT_SECRET="$(printf '%s' "$_row" | cut -f2)"
     CAS_CLOVER_PLUGIN_AUTH_URL="$(printf '%s' "$_row" | cut -f3)"
-    _mcp_url="$(printf '%s' "$_row" | cut -f4)"
-    CAS_CLOVER_PLUGIN_SERVER_URL="$(printf '%s' "$_mcp_url" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/]+).*#\1#')"
-    if [ -z "$CAS_CLOVER_PLUGIN_AUTH_URL" ]; then
-      CAS_CLOVER_PLUGIN_AUTH_URL="https://auth.cloversec.io"
-    fi
+    _url="$(printf '%s' "$_row" | cut -f4)"
+    CAS_CLOVER_PLUGIN_SERVER_URL="$(printf '%s' "$_url" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/]+).*#\1#')"
+    [ -n "$CAS_CLOVER_PLUGIN_AUTH_URL" ] || CAS_CLOVER_PLUGIN_AUTH_URL="https://auth.cloversec.io"
     export CAS_CLOVER_PLUGIN_CLIENT_ID CAS_CLOVER_PLUGIN_CLIENT_SECRET CAS_CLOVER_PLUGIN_SERVER_URL CAS_CLOVER_PLUGIN_AUTH_URL
   fi
 fi

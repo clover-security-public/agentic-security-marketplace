@@ -13,7 +13,7 @@
         "url": "https://github.com/clover-security-public/agentic-security-marketplace.git"
       },
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
-      "version": "0.1.84"
+      "version": "0.1.85"
     },
     {
       "name": "clover-for-security-teams",

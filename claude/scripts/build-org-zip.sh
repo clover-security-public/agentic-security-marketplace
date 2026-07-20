@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
-# Builds a self-contained organization-distribution zip:
-#   - Plugin manifest (.claude-plugin/plugin.json + marketplace.json)
-#   - Hook config (hooks/hooks.json)
-#   - README.md
-#   - All four platform binaries (darwin/linux × arm64/amd64) under bin/
-#   - A setup script that copies the right binary at SessionStart instead
-#     of fetching from GitHub Releases.
+# Builds a self-contained organization-distribution zip for the `clover` plugin.
+#
+# The zip mirrors the plugin's real on-disk layout so it installs offline with
+# `claude plugin install <path>` — no marketplace, no git, no GitHub Releases:
+#   .claude-plugin/plugin.json + marketplace.json   (manifest)
+#   claude/hooks/hooks.json                          (hook config)
+#   claude/scripts/{setup.sh,run-hook.sh}            (runtime, shipped as-is)
+#   claude/skills/                                   (if present)
+#   bin/clover-hook-{darwin,linux}-{arm64,amd64}     (all four binaries)
+#   README.md
+#
+# setup.sh already prefers the bundled binary under ${CLAUDE_PLUGIN_ROOT}/bin,
+# so it runs fully offline; the GitHub Releases path is only a fallback when a
+# bundled binary is missing. That's why we ship the real setup.sh verbatim
+# rather than regenerating a stripped-down copy.
 #
 # Output: dist/clover-plugin-v<version>.zip
 #
 # Usage:
-#   ./scripts/build-org-zip.sh
+#   ./claude/scripts/build-org-zip.sh
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Repo root is two levels up from this script (claude/scripts/ -> repo root).
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' .claude-plugin/plugin.json | grep -o '[0-9][0-9.]*')
@@ -22,24 +31,36 @@ echo "Building offline distribution for clover-plugin v${VERSION}"
 
 STAGE="dist/clover-plugin"
 rm -rf dist
-mkdir -p "$STAGE/.claude-plugin" "$STAGE/hooks" "$STAGE/scripts" "$STAGE/bin"
+mkdir -p "$STAGE/.claude-plugin" "$STAGE/claude/hooks" "$STAGE/claude/scripts" "$STAGE/bin"
 
-# Copy the static plugin files.
+# Manifest. plugin.json ships as-is; marketplace.json is rewritten so the
+# bundle is a self-contained offline marketplace: point the clover plugin's
+# source at the bundle root (".") so `claude plugin install clover@clover-security`
+# resolves from disk instead of cloning from GitHub (unreachable when air-gapped),
+# and drop the sibling plugins that this bundle does not ship.
+if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: jq is required to build the offline marketplace manifest." >&2
+    exit 1
+fi
 cp .claude-plugin/plugin.json "$STAGE/.claude-plugin/"
-cp .claude-plugin/marketplace.json "$STAGE/.claude-plugin/"
-cp hooks/hooks.json "$STAGE/hooks/"
-cp scripts/run-hook.sh "$STAGE/scripts/"
-chmod +x "$STAGE/scripts/run-hook.sh"
+jq '(.plugins |= map(select(.name == "clover"))) | (.plugins[0].source = ".")' \
+    .claude-plugin/marketplace.json > "$STAGE/.claude-plugin/marketplace.json"
+
+# Hook config + runtime scripts (shipped verbatim — single source of truth).
+cp claude/hooks/hooks.json "$STAGE/claude/hooks/"
+cp claude/scripts/setup.sh "$STAGE/claude/scripts/"
+cp claude/scripts/run-hook.sh "$STAGE/claude/scripts/"
+chmod +x "$STAGE/claude/scripts/setup.sh" "$STAGE/claude/scripts/run-hook.sh"
+
 cp README.md "$STAGE/"
 
-# Bundle skills (auto-discovered by Claude Code from skills/<name>/SKILL.md).
-if [ -d skills ]; then
-    cp -R skills "$STAGE/"
+# Bundle skills if the plugin ships any (auto-discovered from skills/<name>/SKILL.md).
+if [ -d claude/skills ]; then
+    cp -R claude/skills "$STAGE/claude/"
 fi
 
-# Bundle the four platform binaries from bin/. Source lives in a private
-# repo now; bin/ is treated as the canonical artifact location and is
-# kept in sync with the latest release.
+# Bundle the four platform binaries from bin/. Source lives in a private repo;
+# bin/ is the canonical artifact location, kept in sync with the latest release.
 for target in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
     SRC="bin/clover-hook-${target}"
     if [ ! -f "$SRC" ]; then
@@ -51,60 +72,6 @@ for target in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
     echo "  bundled ${target}"
 done
 
-# Setup script: at SessionStart, detect OS/arch and copy the matching bundled
-# binary into ${CLAUDE_PLUGIN_DATA}/bin/clover-hook. No network calls.
-cat > "$STAGE/scripts/setup.sh" <<'SETUP'
-#!/usr/bin/env bash
-set -e
-
-# Persist plugin options to env.sh on every SessionStart — see
-# scripts/run-hook.sh for why. Must happen before any short-circuit return.
-if [ -n "${CLAUDE_PLUGIN_DATA}" ]; then
-  mkdir -p "${CLAUDE_PLUGIN_DATA}"
-  ENV_FILE="${CLAUDE_PLUGIN_DATA}/env.sh"
-  {
-    [ -n "${CLAUDE_PLUGIN_OPTION_CLIENT_ID:-}" ]     && printf 'export CAS_CLOVER_PLUGIN_CLIENT_ID=%q\n'     "${CLAUDE_PLUGIN_OPTION_CLIENT_ID}"
-    [ -n "${CLAUDE_PLUGIN_OPTION_CLIENT_SECRET:-}" ] && printf 'export CAS_CLOVER_PLUGIN_CLIENT_SECRET=%q\n' "${CLAUDE_PLUGIN_OPTION_CLIENT_SECRET}"
-    [ -n "${CLAUDE_PLUGIN_OPTION_AUTH_URL:-}" ]      && printf 'export CAS_CLOVER_PLUGIN_AUTH_URL=%q\n'      "${CLAUDE_PLUGIN_OPTION_AUTH_URL}"
-    [ -n "${CLAUDE_PLUGIN_OPTION_SERVER_URL:-}" ]    && printf 'export CAS_CLOVER_PLUGIN_SERVER_URL=%q\n'    "${CLAUDE_PLUGIN_OPTION_SERVER_URL}"
-    true
-  } > "$ENV_FILE"
-  chmod 600 "$ENV_FILE"
-fi
-
-BINARY_DIR="${CLAUDE_PLUGIN_DATA:-${CLAUDE_PLUGIN_ROOT}}/bin"
-BINARY="$BINARY_DIR/clover-hook"
-VERSION_FILE="$BINARY_DIR/.version"
-
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64) ARCH="amd64" ;;
-  aarch64|arm64) ARCH="arm64" ;;
-esac
-ASSET_NAME="clover-hook-${OS}-${ARCH}"
-
-PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
-
-# Same-version short-circuit so we don't reinstall every session.
-if [ -x "$BINARY" ] && [ -f "$VERSION_FILE" ] && [ "$(cat "$VERSION_FILE")" = "$PLUGIN_VERSION" ]; then
-  exit 0
-fi
-
-mkdir -p "$BINARY_DIR"
-
-SRC="${CLAUDE_PLUGIN_ROOT}/bin/${ASSET_NAME}"
-if [ ! -f "$SRC" ]; then
-  echo "clover-plugin: bundled binary not found for ${OS}/${ARCH} (expected ${SRC})" >&2
-  exit 1
-fi
-
-cp "$SRC" "$BINARY"
-chmod +x "$BINARY"
-echo "$PLUGIN_VERSION" > "$VERSION_FILE"
-SETUP
-chmod +x "$STAGE/scripts/setup.sh"
-
 # Zip it.
 ZIP="dist/clover-plugin-v${VERSION}.zip"
 ( cd dist && zip -r "$(basename "$ZIP")" clover-plugin >/dev/null )
@@ -113,8 +80,12 @@ SIZE=$(du -h "$ZIP" | cut -f1)
 echo
 echo "Done: $ZIP ($SIZE)"
 echo
-echo "To install in your Claude Code organization:"
-echo "  unzip $ZIP -d ~/clover-plugin && \\"
-echo "  claude plugin install ~/clover-plugin/clover-plugin"
+echo "To install offline in Claude Code (per developer):"
+echo "  unzip $ZIP -d ~/clover-plugin"
+echo "  claude plugin marketplace add ~/clover-plugin/clover-plugin"
+echo "  claude plugin install clover@clover-security"
 echo
-echo "Or distribute the zip directly — Claude Code can install from a local path."
+echo "Org rollout: ship the unzipped clover-plugin/ dir to a fleet path"
+echo "(e.g. /opt/clover-plugin) and point managed settings at it:"
+echo '  "extraKnownMarketplaces": { "clover-security": {'
+echo '    "source": { "source": "directory", "path": "/opt/clover-plugin" } } }'

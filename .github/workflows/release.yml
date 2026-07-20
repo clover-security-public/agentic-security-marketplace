@@ -104,9 +104,12 @@ jobs:
 
           # ---- tag + release each plugin at its resolved version -------------
           if ! tag_exists "$CLOVER_TAG"; then
+            # Build the self-contained offline (air-gapped) distribution zip
+            # first, so a build failure aborts before we create + push the tag.
+            bash claude/scripts/build-org-zip.sh
             git tag "$CLOVER_TAG"
             git push origin "$CLOVER_TAG"
-            gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --generate-notes bin/clover-hook-*
+            gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --generate-notes bin/clover-hook-* dist/clover-plugin-v*.zip
           else
             echo "Tag $CLOVER_TAG already exists — nothing to release for clover."
           fi

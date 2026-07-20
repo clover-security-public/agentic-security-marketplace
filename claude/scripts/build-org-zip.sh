@@ -33,9 +33,18 @@ STAGE="dist/clover-plugin"
 rm -rf dist
 mkdir -p "$STAGE/.claude-plugin" "$STAGE/claude/hooks" "$STAGE/claude/scripts" "$STAGE/bin"
 
-# Manifest.
+# Manifest. plugin.json ships as-is; marketplace.json is rewritten so the
+# bundle is a self-contained offline marketplace: point the clover plugin's
+# source at the bundle root (".") so `claude plugin install clover@clover-security`
+# resolves from disk instead of cloning from GitHub (unreachable when air-gapped),
+# and drop the sibling plugins that this bundle does not ship.
+if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: jq is required to build the offline marketplace manifest." >&2
+    exit 1
+fi
 cp .claude-plugin/plugin.json "$STAGE/.claude-plugin/"
-cp .claude-plugin/marketplace.json "$STAGE/.claude-plugin/"
+jq '(.plugins |= map(select(.name == "clover"))) | (.plugins[0].source = ".")' \
+    .claude-plugin/marketplace.json > "$STAGE/.claude-plugin/marketplace.json"
 
 # Hook config + runtime scripts (shipped verbatim — single source of truth).
 cp claude/hooks/hooks.json "$STAGE/claude/hooks/"
@@ -71,8 +80,12 @@ SIZE=$(du -h "$ZIP" | cut -f1)
 echo
 echo "Done: $ZIP ($SIZE)"
 echo
-echo "To install in your Claude Code organization:"
-echo "  unzip $ZIP -d ~/clover-plugin && \\"
-echo "  claude plugin install ~/clover-plugin/clover-plugin"
+echo "To install offline in Claude Code (per developer):"
+echo "  unzip $ZIP -d ~/clover-plugin"
+echo "  claude plugin marketplace add ~/clover-plugin/clover-plugin"
+echo "  claude plugin install clover@clover-security"
 echo
-echo "Or distribute the zip directly — Claude Code can install from a local path."
+echo "Org rollout: ship the unzipped clover-plugin/ dir to a fleet path"
+echo "(e.g. /opt/clover-plugin) and point managed settings at it:"
+echo '  "extraKnownMarketplaces": { "clover-security": {'
+echo '    "source": { "source": "directory", "path": "/opt/clover-plugin" } } }'

@@ -107,9 +107,12 @@ jobs:
             # Build the self-contained offline (air-gapped) distribution zip
             # first, so a build failure aborts before we create + push the tag.
             bash claude/scripts/build-org-zip.sh
+            # Also publish a version-less copy so docs can link a permanent URL:
+            # .../releases/latest/download/clover-plugin.zip
+            cp dist/clover-plugin-v*.zip dist/clover-plugin.zip
             git tag "$CLOVER_TAG"
             git push origin "$CLOVER_TAG"
-            gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --generate-notes bin/clover-hook-* dist/clover-plugin-v*.zip
+            gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --generate-notes bin/clover-hook-* dist/clover-plugin-v*.zip dist/clover-plugin.zip
           else
             echo "Tag $CLOVER_TAG already exists — nothing to release for clover."
           fi

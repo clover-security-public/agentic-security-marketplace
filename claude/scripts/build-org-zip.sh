@@ -46,8 +46,14 @@ cp .claude-plugin/plugin.json "$STAGE/.claude-plugin/"
 jq '(.plugins |= map(select(.name == "clover"))) | (.plugins[0].source = ".")' \
     .claude-plugin/marketplace.json > "$STAGE/.claude-plugin/marketplace.json"
 
-# Hook config + runtime scripts (shipped verbatim — single source of truth).
-cp claude/hooks/hooks.json "$STAGE/claude/hooks/"
+# Hook config: strip the check-update SessionStart hook. Air-gapped installs
+# can't reach GitHub to self-update (updates arrive by re-shipping this bundle),
+# so it would only hang on the 30s timeout and spam the hook log. The setup.sh
+# SessionStart hook and the review hooks (PreToolUse/UserPromptSubmit) stay.
+jq '.hooks.SessionStart[].hooks |= map(select((.command // "") | test("check-update") | not))' \
+    claude/hooks/hooks.json > "$STAGE/claude/hooks/hooks.json"
+
+# Runtime scripts (shipped verbatim — single source of truth).
 cp claude/scripts/setup.sh "$STAGE/claude/scripts/"
 cp claude/scripts/run-hook.sh "$STAGE/claude/scripts/"
 chmod +x "$STAGE/claude/scripts/setup.sh" "$STAGE/claude/scripts/run-hook.sh"

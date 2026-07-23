@@ -2,7 +2,8 @@
   "mcpServers": {
     "clover-for-developers": {
       "type": "http",
-      "url": "${CAS_CLOVER_PLUGIN_STREAMING_URL:-https://streaming.cloversec.io}/streaming/developer/mcp"
+      "url": "${CAS_CLOVER_PLUGIN_STREAMING_URL:-https://streaming.cloversec.io}/streaming/developer/mcp",
+      "timeout": 800000
     }
   }
 }

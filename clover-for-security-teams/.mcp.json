@@ -2,7 +2,7 @@
   "mcpServers": {
     "clover-for-security-teams": {
       "type": "http",
-      "url": "${CAS_CLOVER_PLUGIN_STREAMING_URL:-https://streaming.cloversec.io}/streaming/security-team/mcp",
+      "url": "${user_config.streaming_url}/streaming/security-team/mcp",
       "timeout": 800000
     }
   }

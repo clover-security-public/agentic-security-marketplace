@@ -4,5 +4,14 @@
   "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
   "author": {
     "name": "Clover Security"
+  },
+  "userConfig": {
+    "streaming_url": {
+      "type": "string",
+      "title": "Clover streaming URL",
+      "description": "Base URL of your Clover environment. Leave the default unless Clover runs in your own environment (e.g. https://streaming.acme.example.com).",
+      "sensitive": false,
+      "default": "https://streaming.cloversec.io"
+    }
   }
 }

@@ -46,6 +46,11 @@ jobs:
       #                               released under
       #                               "clover-for-security-teams-v<version>"
       #                               (skills-only, no binaries).
+      #   clover-for-developers     — the developer-facing "ask Clover" plugin,
+      #                               versioned on its own in its own manifest +
+      #                               the marketplace entry, released under
+      #                               "clover-for-developers-v<version>"
+      #                               (skills-only, no binaries).
       #
       # For each plugin: if its current-version tag already exists, patch-bump
       # and commit; then tag + cut a release for the resolved version. Matches
@@ -136,6 +141,25 @@ jobs:
           fi
           APPSEC_TAG="clover-for-security-teams-v$APPSEC_V"
 
+          # ---- clover-for-developers -----------------------------------------
+          DEV_PATHS=(clover-for-developers)
+          DEV_V=$(jq -r '.version' clover-for-developers/.claude-plugin/plugin.json)
+          DEV_RELEASE=false
+          if ! tag_exists "clover-for-developers-v$DEV_V"; then
+            DEV_RELEASE=true
+          elif changed_since "clover-for-developers-v$DEV_V" "${DEV_PATHS[@]}"; then
+            DEV_V=$(next_free_patch "clover-for-developers-v" "$DEV_V")
+            jq --arg v "$DEV_V" '.version = $v' clover-for-developers/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-for-developers/.claude-plugin/plugin.json
+            jq --arg v "$DEV_V" '(.plugins[] | select(.name == "clover-for-developers") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
+            git add clover-for-developers/.claude-plugin/plugin.json .claude-plugin/marketplace.json
+            git commit -m "chore(clover-for-developers): bump version to $DEV_V [skip ci]"
+            BUMPED=true
+            DEV_RELEASE=true
+          else
+            echo "clover-for-developers: no content changes since clover-for-developers-v$DEV_V — skipping."
+          fi
+          DEV_TAG="clover-for-developers-v$DEV_V"
+
           # Push all bump commits once.
           if [ "$BUMPED" = true ]; then
             git push
@@ -163,4 +187,10 @@ jobs:
             git tag "$APPSEC_TAG"
             git push origin "$APPSEC_TAG"
             gh release create "$APPSEC_TAG" --title "$APPSEC_TAG" --latest=false --generate-notes
+          fi
+
+          if [ "$DEV_RELEASE" = true ] && ! tag_exists "$DEV_TAG"; then
+            git tag "$DEV_TAG"
+            git push origin "$DEV_TAG"
+            gh release create "$DEV_TAG" --title "$DEV_TAG" --latest=false --generate-notes
           fi

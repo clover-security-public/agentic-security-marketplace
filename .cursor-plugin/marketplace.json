@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Protect your coding agent experience. Clover catches missing security requirements before code is written — automatic STRIDE-style threat modeling on every plan, zero ceremony, zero interruption.",
-    "version": "0.1.89"
+    "version": "0.1.90"
   },
   "plugins": [
     {

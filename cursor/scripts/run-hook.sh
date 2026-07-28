@@ -7,7 +7,7 @@
 # schema, so this script translates in both directions.
 #
 # Like the Claude plugin, the bash layer does no logging of its own — all
-# diagnostics live in the binary's log (/tmp/clover-hook.log); shim errors
+# diagnostics live in the plugin data directory; shim errors
 # surface on stderr, which Cursor captures in its cursor.hooks output log.
 #
 # Subcommands (set in hooks.json):

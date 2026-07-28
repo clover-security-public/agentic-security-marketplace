@@ -5,12 +5,10 @@
 # not. When CLAUDE_PLUGIN_DATA is missing, fall back to the standard plugin
 # data directory under ~/.claude/plugins/data/.
 if [ -z "${CLAUDE_PLUGIN_DATA}" ]; then
-    for candidate in "${HOME}/.claude/plugins/data"/*clover*; do
-        if [ -d "${candidate}" ]; then
-            export CLAUDE_PLUGIN_DATA="${candidate}"
-            break
-        fi
-    done
+    # Use this plugin's exact Claude data key. A wildcard can select another
+    # Clover installation (for example clover-impl-dev) and execute its binary
+    # with production hooks.
+    export CLAUDE_PLUGIN_DATA="${HOME}/.claude/plugins/data/clover-clover-security"
 fi
 
 # Self-bootstrap. If the plugin was enabled (or auto-updated) mid-session,
@@ -25,7 +23,10 @@ BINARY="${CLAUDE_PLUGIN_DATA}/bin/clover-hook${EXE_SUFFIX}"
 VERSION_FILE="${CLAUDE_PLUGIN_DATA}/bin/.version"
 PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
 if [ ! -x "$BINARY" ] || [ "$(cat "$VERSION_FILE" 2>/dev/null)" != "$PLUGIN_VERSION" ]; then
-    bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"
+    if ! bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"; then
+        echo "clover: fail-open (binary installation failed)" >&2
+        exit 0
+    fi
 fi
 
 # Registry self-heal trigger. For users stuck in split-brain state

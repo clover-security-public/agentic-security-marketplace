@@ -1,8 +1,6 @@
 #!/bin/bash
-# Downloads the correct clover-hook binary from GitHub releases on first run.
+# Installs the bundled clover-hook binary into persistent plugin storage.
 # Uses ${CLAUDE_PLUGIN_DATA} for persistent storage across plugin updates.
-
-REPO="clover-security/clover-claude-plugin"
 
 # Persist plugin options to env.sh so other hook events
 # (UserPromptSubmit, PreToolUse) — which do not receive
@@ -203,61 +201,88 @@ case "$OS" in
     OS="windows"
     EXE_SUFFIX=".exe"
     ;;
+  *)
+    echo "clover-plugin setup.sh: unsupported operating system: $OS" >&2
+    exit 1
+    ;;
 esac
 ARCH=$(uname -m)
 case "$ARCH" in
   x86_64) ARCH="amd64" ;;
   aarch64|arm64) ARCH="arm64" ;;
+  *)
+    echo "clover-plugin setup.sh: unsupported architecture: $ARCH" >&2
+    exit 1
+    ;;
 esac
 
 BINARY_DIR="${CLAUDE_PLUGIN_DATA:-${CLAUDE_PLUGIN_ROOT}}/bin"
 BINARY="$BINARY_DIR/clover-hook${EXE_SUFFIX}"
 VERSION_FILE="$BINARY_DIR/.version"
 ASSET_NAME="clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
+BUNDLED="${CLAUDE_PLUGIN_ROOT}/bin/${ASSET_NAME}"
 
 # Get current plugin version
 PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
 
-# Skip if binary exists and version matches
-if [ -x "$BINARY" ] && [ -f "$VERSION_FILE" ] && [ "$(cat "$VERSION_FILE")" = "$PLUGIN_VERSION" ]; then
+# A matching version marker is trusted only when the installed bytes still
+# match the bundled binary. Corrupt or poisoned caches self-heal.
+if [ -x "$BINARY" ] && [ -f "$VERSION_FILE" ] &&
+  [ "$(cat "$VERSION_FILE")" = "$PLUGIN_VERSION" ] && cmp -s "$BUNDLED" "$BINARY"; then
   exit 0
 fi
 
-mkdir -p "$BINARY_DIR"
-
-# Primary path: copy the bundled binary that ships with the plugin clone.
-# This is the only reliable path — it works without gh CLI auth, without
-# a working network, and across all org rollout configurations.
-BUNDLED="${CLAUDE_PLUGIN_ROOT}/bin/${ASSET_NAME}"
-if [ -f "$BUNDLED" ]; then
-  cp "$BUNDLED" "$BINARY"
-  chmod +x "$BINARY"
-  echo "$PLUGIN_VERSION" > "$VERSION_FILE"
-  exit 0
+if [ -z "$PLUGIN_VERSION" ] || [ ! -s "$BUNDLED" ]; then
+  echo "clover-plugin setup.sh: missing plugin version or bundled binary for ${OS}/${ARCH}: ${BUNDLED}" >&2
+  exit 1
 fi
 
-# Fallback: GitHub Releases (kept for shallow clones or future detached-bin layouts)
-if command -v gh >/dev/null 2>&1; then
-  gh release download "v${PLUGIN_VERSION}" \
-    --repo "$REPO" \
-    --pattern "$ASSET_NAME" \
-    --dir "$BINARY_DIR" \
-    --clobber 2>/dev/null
-  if [ -f "$BINARY_DIR/$ASSET_NAME" ]; then
-    mv "$BINARY_DIR/$ASSET_NAME" "$BINARY"
-    chmod +x "$BINARY"
-    echo "$PLUGIN_VERSION" > "$VERSION_FILE"
-    exit 0
+if ! mkdir -p "$BINARY_DIR"; then
+  echo "clover-plugin setup.sh: cannot create binary directory: ${BINARY_DIR}" >&2
+  exit 1
+fi
+
+STAGED_BINARY="$BINARY_DIR/.clover-hook.install.$$"
+STAGED_VERSION="$BINARY_DIR/.version.install.$$"
+trap 'rm -f "$STAGED_BINARY" "$STAGED_VERSION"' EXIT
+
+if ! cp "$BUNDLED" "$STAGED_BINARY" || ! cmp -s "$BUNDLED" "$STAGED_BINARY"; then
+  echo "clover-plugin setup.sh: failed to stage the complete binary for ${OS}/${ARCH}" >&2
+  exit 1
+fi
+if ! chmod +x "$STAGED_BINARY"; then
+  echo "clover-plugin setup.sh: failed to mark the staged binary executable" >&2
+  exit 1
+fi
+if ! printf '%s\n' "$PLUGIN_VERSION" > "$STAGED_VERSION"; then
+  echo "clover-plugin setup.sh: failed to stage the version marker" >&2
+  exit 1
+fi
+
+# Rename is atomic on the target filesystem. On Windows another short-lived
+# hook process can temporarily hold the executable open, so retry briefly;
+# every failed attempt leaves the previously installed binary untouched.
+attempt=1
+while ! mv -f "$STAGED_BINARY" "$BINARY"; do
+  if [ "$attempt" -ge 3 ]; then
+    echo "clover-plugin setup.sh: failed to atomically install ${BINARY}" >&2
+    exit 1
   fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+
+if ! mv -f "$STAGED_VERSION" "$VERSION_FILE"; then
+  echo "clover-plugin setup.sh: binary installed but version marker was not advanced" >&2
+  exit 1
 fi
 
-URL="https://github.com/$REPO/releases/download/v${PLUGIN_VERSION}/${ASSET_NAME}"
-curl -sL "$URL" -o "$BINARY" 2>/dev/null
-if [ -s "$BINARY" ]; then
-  chmod +x "$BINARY"
-  echo "$PLUGIN_VERSION" > "$VERSION_FILE"
-  exit 0
+# v0.1.88 could cache GitHub's nine-byte "Not Found" response under the old
+# extensionless Windows name. Remove it only after the verified .exe and its
+# version marker are safely installed.
+if [ "$OS" = "windows" ]; then
+  rm -f "$BINARY_DIR/clover-hook"
 fi
 
-echo "clover-plugin setup.sh: failed to install binary for ${OS}/${ARCH} (looked at ${BUNDLED}, gh release, curl)" >&2
-exit 1
+trap - EXIT
+exit 0

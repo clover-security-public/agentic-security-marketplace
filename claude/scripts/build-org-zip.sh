@@ -11,10 +11,9 @@
 #   bin/clover-hook-windows-{arm64,amd64}.exe        (all six binaries)
 #   README.md
 #
-# setup.sh already prefers the bundled binary under ${CLAUDE_PLUGIN_ROOT}/bin,
-# so it runs fully offline; the GitHub Releases path is only a fallback when a
-# bundled binary is missing. That's why we ship the real setup.sh verbatim
-# rather than regenerating a stripped-down copy.
+# setup.sh installs only the verified bundled binary under
+# ${CLAUDE_PLUGIN_ROOT}/bin, so it runs fully offline and cannot cache an HTTP
+# error response as an executable.
 #
 # Output: dist/clover-plugin-v<version>.zip
 #

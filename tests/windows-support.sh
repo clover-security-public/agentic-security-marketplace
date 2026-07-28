@@ -75,6 +75,10 @@ if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(
   exit 1
 fi
 
+mkdir -p "$CLAUDE_DATA/bin"
+printf 'Not Found' > "$CLAUDE_DATA/bin/clover-hook"
+printf '0.1.88\n' > "$CLAUDE_DATA/bin/.version"
+
 PATH="$MOCK_BIN:$PATH" \
 HOME="$TEST_HOME" \
 CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
@@ -85,6 +89,68 @@ TEST_UNAME_M="x86_64" \
 
 if [ ! -x "$CLAUDE_DATA/bin/clover-hook.exe" ]; then
   echo "ERROR: Claude setup did not deploy clover-hook.exe on Windows" >&2
+  exit 1
+fi
+if [ -e "$CLAUDE_DATA/bin/clover-hook" ]; then
+  echo "ERROR: successful Windows upgrade did not remove the poisoned legacy binary" >&2
+  exit 1
+fi
+if [ "$(cat "$CLAUDE_DATA/bin/.version")" != "$(jq -r .version "$PLUGIN_ROOT/.claude-plugin/plugin.json")" ]; then
+  echo "ERROR: successful Windows upgrade did not atomically advance .version" >&2
+  exit 1
+fi
+
+MISSING_ROOT="$TEST_DIR/missing-plugin"
+MISSING_DATA="$TEST_DIR/missing-data"
+cp -R "$PLUGIN_ROOT" "$MISSING_ROOT"
+rm "$MISSING_ROOT/bin/clover-hook-windows-amd64.exe"
+if PATH="$MOCK_BIN:$PATH" \
+  HOME="$TEST_HOME" \
+  CLAUDE_PLUGIN_ROOT="$MISSING_ROOT" \
+  CLAUDE_PLUGIN_DATA="$MISSING_DATA" \
+  TEST_UNAME_S="MINGW64_NT-10.0-22631" \
+  TEST_UNAME_M="x86_64" \
+    bash "$MISSING_ROOT/claude/scripts/setup.sh"; then
+  echo "ERROR: Claude setup accepted a missing bundled Windows binary" >&2
+  exit 1
+fi
+if [ -e "$MISSING_DATA/bin/clover-hook.exe" ] || [ -e "$MISSING_DATA/bin/.version" ]; then
+  echo "ERROR: failed setup left a binary or advanced version marker behind" >&2
+  exit 1
+fi
+
+cat > "$MOCK_BIN/cp" <<'EOF'
+#!/usr/bin/env bash
+if [ "${FAIL_CLOVER_COPY:-}" = "1" ] && [ "$#" -eq 2 ] && [[ "$2" == *".clover-hook.install."* ]]; then
+  printf 'partial' > "$2"
+  exit 1
+fi
+command -p cp "$@"
+EOF
+chmod +x "$MOCK_BIN/cp"
+
+PARTIAL_DATA="$TEST_DIR/partial-data"
+mkdir -p "$PARTIAL_DATA/bin"
+printf 'known-good' > "$PARTIAL_DATA/bin/clover-hook.exe"
+chmod +x "$PARTIAL_DATA/bin/clover-hook.exe"
+printf '0.1.88\n' > "$PARTIAL_DATA/bin/.version"
+if PATH="$MOCK_BIN:$PATH" \
+  HOME="$TEST_HOME" \
+  CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+  CLAUDE_PLUGIN_DATA="$PARTIAL_DATA" \
+  TEST_UNAME_S="MINGW64_NT-10.0-22631" \
+  TEST_UNAME_M="x86_64" \
+  FAIL_CLOVER_COPY=1 \
+    bash "$PLUGIN_ROOT/claude/scripts/setup.sh"; then
+  echo "ERROR: Claude setup accepted a partial staged copy" >&2
+  exit 1
+fi
+if [ "$(cat "$PARTIAL_DATA/bin/clover-hook.exe")" != "known-good" ]; then
+  echo "ERROR: failed staged copy replaced the previously working binary" >&2
+  exit 1
+fi
+if [ "$(cat "$PARTIAL_DATA/bin/.version")" != "0.1.88" ]; then
+  echo "ERROR: failed staged copy advanced the version marker" >&2
   exit 1
 fi
 
@@ -99,6 +165,33 @@ claude_output="$(
 )"
 if [ "$claude_output" != "fake-hook:review-plan" ]; then
   echo "ERROR: Claude dispatcher did not execute clover-hook.exe: $claude_output" >&2
+  exit 1
+fi
+
+STANDARD_DATA="$TEST_HOME/.claude/plugins/data/clover-clover-security"
+WRONG_DATA="$TEST_HOME/.claude/plugins/data/aaa-clover-staging"
+mkdir -p "$STANDARD_DATA/bin" "$WRONG_DATA/bin"
+cp "$CLAUDE_DATA/bin/clover-hook.exe" "$STANDARD_DATA/bin/"
+cp "$CLAUDE_DATA/bin/.version" "$STANDARD_DATA/bin/"
+cat > "$WRONG_DATA/bin/clover-hook.exe" <<'EOF'
+#!/usr/bin/env bash
+printf 'wrong-plugin:%s\n' "$*"
+EOF
+chmod +x "$WRONG_DATA/bin/clover-hook.exe"
+cp "$CLAUDE_DATA/bin/.version" "$WRONG_DATA/bin/"
+mkdir -p "$TEST_HOME/.claude/plugins"
+printf '{"plugins":{"clover@clover-security":[{}]}}\n' > "$TEST_HOME/.claude/plugins/installed_plugins.json"
+fallback_output="$(
+  PATH="$MOCK_BIN:$PATH" \
+  HOME="$TEST_HOME" \
+  LC_ALL=C \
+  CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
+  TEST_UNAME_S="MINGW64_NT-10.0-22631" \
+  TEST_UNAME_M="x86_64" \
+    env -u CLAUDE_PLUGIN_DATA bash "$PLUGIN_ROOT/claude/scripts/run-hook.sh" review-plan
+)"
+if [ "$fallback_output" != "fake-hook:review-plan" ]; then
+  echo "ERROR: Claude fallback selected another Clover plugin data dir: $fallback_output" >&2
   exit 1
 fi
 

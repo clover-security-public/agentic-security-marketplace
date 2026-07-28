@@ -7,7 +7,8 @@
 #   claude/hooks/hooks.json                          (hook config)
 #   claude/scripts/{setup.sh,run-hook.sh}            (runtime, shipped as-is)
 #   claude/skills/                                   (if present)
-#   bin/clover-hook-{darwin,linux}-{arm64,amd64}     (all four binaries)
+#   bin/clover-hook-{darwin,linux}-{arm64,amd64}
+#   bin/clover-hook-windows-{arm64,amd64}.exe        (all six binaries)
 #   README.md
 #
 # setup.sh already prefers the bundled binary under ${CLAUDE_PLUGIN_ROOT}/bin,
@@ -65,9 +66,9 @@ if [ -d claude/skills ]; then
     cp -R claude/skills "$STAGE/claude/"
 fi
 
-# Bundle the four platform binaries from bin/. Source lives in a private repo;
+# Bundle the six platform binaries from bin/. Source lives in a private repo;
 # bin/ is the canonical artifact location, kept in sync with the latest release.
-for target in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
+for target in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64 windows-arm64.exe windows-amd64.exe; do
     SRC="bin/clover-hook-${target}"
     if [ ! -f "$SRC" ]; then
         echo "ERROR: ${SRC} is missing — pull binaries from the latest release first:" >&2

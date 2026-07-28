@@ -3,17 +3,17 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "${CURSOR_PLUGIN_ROOT}/cursor/scripts/setup.sh"
+        "command": "bash \"${CURSOR_PLUGIN_ROOT}/cursor/scripts/setup.sh\""
       }
     ],
     "beforeSubmitPrompt": [
       {
-        "command": "${CURSOR_PLUGIN_ROOT}/cursor/scripts/run-hook.sh log-prompt"
+        "command": "bash \"${CURSOR_PLUGIN_ROOT}/cursor/scripts/run-hook.sh\" log-prompt"
       }
     ],
     "stop": [
       {
-        "command": "${CURSOR_PLUGIN_ROOT}/cursor/scripts/run-hook.sh review-plan-stop",
+        "command": "bash \"${CURSOR_PLUGIN_ROOT}/cursor/scripts/run-hook.sh\" review-plan-stop",
         "timeout": 300,
         "loop_limit": 3
       }

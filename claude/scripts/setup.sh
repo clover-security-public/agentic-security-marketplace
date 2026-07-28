@@ -193,18 +193,27 @@ PYEOF
 fi
 # ---------------------------------------------------------------------------
 
-BINARY_DIR="${CLAUDE_PLUGIN_DATA:-${CLAUDE_PLUGIN_ROOT}}/bin"
-BINARY="$BINARY_DIR/clover-hook"
-VERSION_FILE="$BINARY_DIR/.version"
-
 # Detect platform
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+EXE_SUFFIX=""
+case "$OS" in
+  darwin*) OS="darwin" ;;
+  linux*) OS="linux" ;;
+  mingw*|msys*|cygwin*|windows_nt*)
+    OS="windows"
+    EXE_SUFFIX=".exe"
+    ;;
+esac
 ARCH=$(uname -m)
 case "$ARCH" in
   x86_64) ARCH="amd64" ;;
   aarch64|arm64) ARCH="arm64" ;;
 esac
-ASSET_NAME="clover-hook-${OS}-${ARCH}"
+
+BINARY_DIR="${CLAUDE_PLUGIN_DATA:-${CLAUDE_PLUGIN_ROOT}}/bin"
+BINARY="$BINARY_DIR/clover-hook${EXE_SUFFIX}"
+VERSION_FILE="$BINARY_DIR/.version"
+ASSET_NAME="clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
 
 # Get current plugin version
 PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')

@@ -82,7 +82,7 @@ jobs:
 
       - name: Check scripts are executable
         run: |
-          for f in claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh; do
+          for f in claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh; do
             if [ ! -x "$f" ]; then
               echo "ERROR: $f is not executable"
               exit 1
@@ -90,7 +90,10 @@ jobs:
             echo "OK: $f"
           done
 
+      - name: Test Windows runtime support
+        run: bash tests/windows-support.sh
+
       - name: Shellcheck
         run: |
           sudo apt-get install -y shellcheck > /dev/null 2>&1
-          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh || true
+          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh || true

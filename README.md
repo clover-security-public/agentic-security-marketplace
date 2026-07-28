@@ -35,6 +35,13 @@ Clover silently reviews every plan your AI coding agent makes, surfaces the secu
 2. Provide your Clover API credentials.
 3. Start planning — Clover reviews every plan in the background.
 
+### Windows
+
+The plugin ships native Windows executables for x64 and ARM64. Claude Code's
+native Windows setup already requires Git for Windows; Cursor users should
+install [Git for Windows](https://git-scm.com/download/win) and make sure
+`bash.exe` is available on `PATH`.
+
 👉 **For detailed, screenshot-by-screenshot instructions, org-wide rollout, and troubleshooting, see the [Connecting Clover to Coding Agents guide](https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents).**
 
 ---

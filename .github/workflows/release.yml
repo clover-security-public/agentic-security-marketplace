@@ -27,7 +27,7 @@ jobs:
       # release artifacts are missing.
       - name: Verify binaries present
         run: |
-          for name in clover-hook-darwin-arm64 clover-hook-darwin-amd64 clover-hook-linux-amd64 clover-hook-linux-arm64; do
+          for name in clover-hook-darwin-arm64 clover-hook-darwin-amd64 clover-hook-linux-amd64 clover-hook-linux-arm64 clover-hook-windows-amd64.exe clover-hook-windows-arm64.exe; do
             if [ ! -f "bin/$name" ]; then
               echo "ERROR: bin/$name is missing — push binaries from the source repo before releasing" >&2
               exit 1

@@ -46,8 +46,14 @@ BIN="${CLOVER_HOOK_BIN:-}"
 if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
   ROOT="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
   OS="$(uname -s | tr '[:upper:]' '[:lower:]')"; ARCH="$(uname -m)"
+  EXE_SUFFIX=""
+  case "$OS" in
+    darwin*) OS=darwin ;;
+    linux*) OS=linux ;;
+    mingw*|msys*|cygwin*|windows_nt*) OS=windows; EXE_SUFFIX=.exe ;;
+  esac
   case "$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
-  BIN="${ROOT}/bin/clover-hook-${OS}-${ARCH}"
+  BIN="${ROOT}/bin/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
 fi
 
 if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then

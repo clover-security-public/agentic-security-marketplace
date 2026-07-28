@@ -18,12 +18,21 @@ IN="$(cat 2>/dev/null || true)"
 ROOT="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+EXE_SUFFIX=""
+case "$OS" in
+  darwin*) OS=darwin ;;
+  linux*) OS=linux ;;
+  mingw*|msys*|cygwin*|windows_nt*)
+    OS=windows
+    EXE_SUFFIX=.exe
+    ;;
+esac
 ARCH="$(uname -m)"
 case "$ARCH" in
   x86_64) ARCH=amd64 ;;
   aarch64|arm64) ARCH=arm64 ;;
 esac
-BIN="${ROOT}/bin/clover-hook-${OS}-${ARCH}"
+BIN="${ROOT}/bin/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
 chmod +x "$BIN" 2>/dev/null || true
 
 # Persistent data dir for the binary's token cache + session state. Cursor has

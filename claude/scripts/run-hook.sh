@@ -17,7 +17,11 @@ fi
 # SessionStart never fired with the plugin loaded, so setup.sh never ran
 # and the binary was never deployed — making every hook event silently
 # no-op. Run setup.sh on demand whenever the binary is missing or stale.
-BINARY="${CLAUDE_PLUGIN_DATA}/bin/clover-hook"
+EXE_SUFFIX=""
+case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
+    mingw*|msys*|cygwin*|windows_nt*) EXE_SUFFIX=".exe" ;;
+esac
+BINARY="${CLAUDE_PLUGIN_DATA}/bin/clover-hook${EXE_SUFFIX}"
 VERSION_FILE="${CLAUDE_PLUGIN_DATA}/bin/.version"
 PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
 if [ ! -x "$BINARY" ] || [ "$(cat "$VERSION_FILE" 2>/dev/null)" != "$PLUGIN_VERSION" ]; then

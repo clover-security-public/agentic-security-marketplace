@@ -14,9 +14,9 @@ jobs:
         run: |
           for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json \
                           clover-for-security-teams/.claude-plugin/plugin.json \
-                          clover-for-security-teams/.cursor-plugin/plugin.json \
+                          clover-for-security-teams-cursor/.cursor-plugin/plugin.json \
                           clover-for-developers/.claude-plugin/plugin.json \
-                          clover-for-developers/.cursor-plugin/plugin.json; do
+                          clover-for-developers-cursor/.cursor-plugin/plugin.json; do
             echo "Checking $manifest..."
             jq empty "$manifest"
             NAME=$(jq -r '.name' "$manifest")
@@ -55,7 +55,7 @@ jobs:
         run: |
           for plugin in clover-for-security-teams clover-for-developers; do
             CLAUDE_PLUGIN=$(jq -r '.version' "$plugin/.claude-plugin/plugin.json")
-            CURSOR_PLUGIN=$(jq -r '.version' "$plugin/.cursor-plugin/plugin.json")
+            CURSOR_PLUGIN=$(jq -r '.version' "$plugin-cursor/.cursor-plugin/plugin.json")
             CLAUDE_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .claude-plugin/marketplace.json)
             CURSOR_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .cursor-plugin/marketplace.json)
             echo "$plugin: claude/plugin=$CLAUDE_PLUGIN cursor/plugin=$CURSOR_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/marketplace=$CURSOR_MARKET"
@@ -70,32 +70,53 @@ jobs:
             fi
           done
 
-      # Every MCP-bearing plugin must expose the same server on both IDEs: the
-      # Claude side reads .mcp.json (${user_config.*} placeholders), the Cursor
-      # side reads mcpServers in .cursor-plugin/plugin.json (${VAR} placeholders
-      # declared under "variables"). The syntaxes are not interchangeable, so
-      # the two are separate files — this check keeps their endpoints identical.
-      - name: Check MCP server endpoints match across agent IDEs
+      # Cursor cannot share a plugin directory with Claude. Cursor auto-detects
+      # a plugin-root .mcp.json and it BEATS every alternative (verified on
+      # Cursor 3.13.25: .mcp.json won over mcp.json, and mcp.json won over an
+      # inline mcpServers block). Since Claude's .mcp.json must stay exactly as
+      # it is, Cursor gets its own directory, "<plugin>-cursor", holding only a
+      # .cursor-plugin manifest, its own .mcp.json, and a copy of the skills.
+      #
+      # Cursor also does NOT apply a "variables" default and lowercases ${VAR}
+      # names before lookup, so the Cursor URL is concrete, not interpolated.
+      # Self-hosted users override it in their own ~/.cursor/mcp.json.
+      - name: Check Cursor plugin directories
         run: |
           for plugin in clover-for-security-teams clover-for-developers; do
+            CURSOR_DIR="$plugin-cursor"
+
+            # A Cursor plugin root must not carry any Claude plugin files, or
+            # Cursor would read Claude's ${user_config.*} placeholder and fail.
+            for forbidden in .claude-plugin claude.mcp.json mcp.json; do
+              if [ -e "$CURSOR_DIR/$forbidden" ]; then
+                echo "ERROR: $CURSOR_DIR/$forbidden must not exist — Cursor must resolve its own .mcp.json" >&2
+                exit 1
+              fi
+            done
+
             CLAUDE_URL=$(jq -r --arg name "$plugin" '.mcpServers[$name].url' "$plugin/.mcp.json")
-            CURSOR_URL=$(jq -r --arg name "$plugin" '.mcpServers[$name].url' "$plugin/.cursor-plugin/plugin.json")
-            CLAUDE_PATH=${CLAUDE_URL#*\}}
-            CURSOR_PATH=${CURSOR_URL#*\}}
+            CURSOR_URL=$(jq -r --arg name "$plugin" '.mcpServers[$name].url' "$CURSOR_DIR/.mcp.json")
             echo "$plugin: claude=$CLAUDE_URL cursor=$CURSOR_URL"
-            if [ -n "$CLAUDE_PATH" ] && [ "$CLAUDE_PATH" = "$CURSOR_PATH" ]; then
-              echo "$plugin MCP endpoint in sync: $CLAUDE_PATH"
-            else
-              echo "ERROR: $plugin MCP endpoint differs between .mcp.json and .cursor-plugin/plugin.json" >&2
+
+            # The Cursor URL must be concrete: no unresolvable placeholder.
+            case "$CURSOR_URL" in
+              https://*) ;;
+              *) echo "ERROR: $CURSOR_DIR/.mcp.json url must be an absolute https URL, not a placeholder (Cursor does not interpolate plugin variables)" >&2; exit 1 ;;
+            esac
+
+            # Both IDEs must target the same endpoint path.
+            if [ "${CLAUDE_URL#*\}}" != "${CURSOR_URL#https://*.io}" ]; then
+              echo "ERROR: $plugin MCP endpoint path differs between $plugin/.mcp.json and $CURSOR_DIR/.mcp.json" >&2
               exit 1
             fi
-            # The Cursor URL must interpolate a variable the manifest declares.
-            CURSOR_VAR=$(printf '%s' "$CURSOR_URL" | sed -n 's/^\${\([A-Za-z0-9_]*\)}.*/\1/p')
-            if [ -z "$CURSOR_VAR" ] || [ "$(jq -r --arg v "$CURSOR_VAR" '.variables.properties | has($v)' "$plugin/.cursor-plugin/plugin.json")" != "true" ]; then
-              echo "ERROR: $plugin Cursor MCP url must start with a \${VAR} declared in .variables.properties" >&2
+
+            # Skills are duplicated, so they must not drift.
+            if ! diff -r "$plugin/skills" "$CURSOR_DIR/skills" > /dev/null; then
+              echo "ERROR: $CURSOR_DIR/skills differs from $plugin/skills — keep the copies byte-identical" >&2
+              diff -r "$plugin/skills" "$CURSOR_DIR/skills" || true
               exit 1
             fi
-            echo "$plugin Cursor variable declared: $CURSOR_VAR"
+            echo "$plugin OK: cursor dir clean, url concrete, skills identical"
           done
 
       - name: Validate hooks manifests

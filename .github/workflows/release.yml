@@ -124,7 +124,7 @@ jobs:
           CLOVER_TAG="v$CLOVER_V"
 
           # ---- clover-for-security-teams (ask Clover) ------------------------
-          APPSEC_PATHS=(clover-for-security-teams)
+          APPSEC_PATHS=(clover-for-security-teams clover-for-security-teams-cursor)
           APPSEC_V=$(jq -r '.version' clover-for-security-teams/.claude-plugin/plugin.json)
           APPSEC_RELEASE=false
           if ! tag_exists "clover-for-security-teams-v$APPSEC_V"; then
@@ -135,10 +135,10 @@ jobs:
             # manifests plus both marketplace entries — in lockstep
             # (validate.yml enforces this).
             jq --arg v "$APPSEC_V" '.version = $v' clover-for-security-teams/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-for-security-teams/.claude-plugin/plugin.json
-            jq --arg v "$APPSEC_V" '.version = $v' clover-for-security-teams/.cursor-plugin/plugin.json > tmp.json && mv tmp.json clover-for-security-teams/.cursor-plugin/plugin.json
+            jq --arg v "$APPSEC_V" '.version = $v' clover-for-security-teams-cursor/.cursor-plugin/plugin.json > tmp.json && mv tmp.json clover-for-security-teams-cursor/.cursor-plugin/plugin.json
             jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-for-security-teams") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
             jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-for-security-teams") | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
-            git add clover-for-security-teams/.claude-plugin/plugin.json clover-for-security-teams/.cursor-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
+            git add clover-for-security-teams/.claude-plugin/plugin.json clover-for-security-teams-cursor/.cursor-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
             git commit -m "chore(clover-for-security-teams): bump version to $APPSEC_V [skip ci]"
             BUMPED=true
             APPSEC_RELEASE=true
@@ -148,7 +148,7 @@ jobs:
           APPSEC_TAG="clover-for-security-teams-v$APPSEC_V"
 
           # ---- clover-for-developers -----------------------------------------
-          DEV_PATHS=(clover-for-developers)
+          DEV_PATHS=(clover-for-developers clover-for-developers-cursor)
           DEV_V=$(jq -r '.version' clover-for-developers/.claude-plugin/plugin.json)
           DEV_RELEASE=false
           if ! tag_exists "clover-for-developers-v$DEV_V"; then
@@ -159,10 +159,10 @@ jobs:
             # manifests plus both marketplace entries — in lockstep
             # (validate.yml enforces this).
             jq --arg v "$DEV_V" '.version = $v' clover-for-developers/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-for-developers/.claude-plugin/plugin.json
-            jq --arg v "$DEV_V" '.version = $v' clover-for-developers/.cursor-plugin/plugin.json > tmp.json && mv tmp.json clover-for-developers/.cursor-plugin/plugin.json
+            jq --arg v "$DEV_V" '.version = $v' clover-for-developers-cursor/.cursor-plugin/plugin.json > tmp.json && mv tmp.json clover-for-developers-cursor/.cursor-plugin/plugin.json
             jq --arg v "$DEV_V" '(.plugins[] | select(.name == "clover-for-developers") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
             jq --arg v "$DEV_V" '(.plugins[] | select(.name == "clover-for-developers") | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
-            git add clover-for-developers/.claude-plugin/plugin.json clover-for-developers/.cursor-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
+            git add clover-for-developers/.claude-plugin/plugin.json clover-for-developers-cursor/.cursor-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
             git commit -m "chore(clover-for-developers): bump version to $DEV_V [skip ci]"
             BUMPED=true
             DEV_RELEASE=true

@@ -57,7 +57,7 @@ jobs:
             CLAUDE_PLUGIN=$(jq -r '.version' "$plugin/.claude-plugin/plugin.json")
             CURSOR_PLUGIN=$(jq -r '.version' "$plugin-cursor/.cursor-plugin/plugin.json")
             CLAUDE_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .claude-plugin/marketplace.json)
-            CURSOR_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .cursor-plugin/marketplace.json)
+            CURSOR_MARKET=$(jq -r --arg name "$plugin-cursor" '.plugins[] | select(.name == $name) | .version' .cursor-plugin/marketplace.json)
             echo "$plugin: claude/plugin=$CLAUDE_PLUGIN cursor/plugin=$CURSOR_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/marketplace=$CURSOR_MARKET"
             if [ -n "$CLAUDE_PLUGIN" ] \
               && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] \
@@ -84,6 +84,16 @@ jobs:
         run: |
           for plugin in clover-for-security-teams clover-for-developers; do
             CURSOR_DIR="$plugin-cursor"
+
+            # The Cursor plugin name carries a "-cursor" suffix on purpose.
+            # Cursor auto-loads Claude plugins from ~/.claude/plugins, and two
+            # plugins sharing a name collide with the Claude-sourced copy
+            # winning — which would make this plugin silently unreachable for
+            # anyone who also uses Claude Code. Verified on Cursor 3.13.25.
+            if [ "$(jq -r '.name' "$CURSOR_DIR/.cursor-plugin/plugin.json")" != "$plugin-cursor" ]; then
+              echo "ERROR: $CURSOR_DIR must be named '$plugin-cursor' so it cannot be shadowed by the Claude-installed plugin of the same name" >&2
+              exit 1
+            fi
 
             # A Cursor plugin root must not carry any Claude plugin files, or
             # Cursor would read Claude's ${user_config.*} placeholder and fail.

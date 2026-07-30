@@ -12,7 +12,11 @@ jobs:
 
       - name: Validate plugin manifests
         run: |
-          for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json; do
+          for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json \
+                          clover-for-security-teams/.claude-plugin/plugin.json \
+                          clover-for-security-teams/.cursor-plugin/plugin.json \
+                          clover-for-developers/.claude-plugin/plugin.json \
+                          clover-for-developers/.cursor-plugin/plugin.json; do
             echo "Checking $manifest..."
             jq empty "$manifest"
             NAME=$(jq -r '.name' "$manifest")
@@ -43,34 +47,56 @@ jobs:
             exit 1
           fi
 
-      # clover-for-security-teams is versioned independently of clover, but its
-      # own two version locations (its manifest + the marketplace entry) must
+      # clover-for-security-teams and clover-for-developers are each versioned
+      # independently of clover, but each one's four version locations — its
+      # Claude and Cursor manifests plus its entry in both marketplaces — must
       # agree.
-      - name: Check clover-for-security-teams version is in sync
+      - name: Check secondary plugin versions are in sync
         run: |
-          APPSEC_PLUGIN=$(jq -r '.version' clover-for-security-teams/.claude-plugin/plugin.json)
-          APPSEC_MARKET=$(jq -r '.plugins[] | select(.name == "clover-for-security-teams") | .version' .claude-plugin/marketplace.json)
-          echo "clover-for-security-teams/plugin=$APPSEC_PLUGIN marketplace=$APPSEC_MARKET"
-          if [ -n "$APPSEC_PLUGIN" ] && [ "$APPSEC_PLUGIN" = "$APPSEC_MARKET" ]; then
-            echo "clover-for-security-teams versions in sync: $APPSEC_PLUGIN"
-          else
-            echo "ERROR: clover-for-security-teams version is out of sync between its manifest and the marketplace entry" >&2
-            exit 1
-          fi
+          for plugin in clover-for-security-teams clover-for-developers; do
+            CLAUDE_PLUGIN=$(jq -r '.version' "$plugin/.claude-plugin/plugin.json")
+            CURSOR_PLUGIN=$(jq -r '.version' "$plugin/.cursor-plugin/plugin.json")
+            CLAUDE_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .claude-plugin/marketplace.json)
+            CURSOR_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .cursor-plugin/marketplace.json)
+            echo "$plugin: claude/plugin=$CLAUDE_PLUGIN cursor/plugin=$CURSOR_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/marketplace=$CURSOR_MARKET"
+            if [ -n "$CLAUDE_PLUGIN" ] \
+              && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] \
+              && [ "$CLAUDE_PLUGIN" = "$CLAUDE_MARKET" ] \
+              && [ "$CLAUDE_PLUGIN" = "$CURSOR_MARKET" ]; then
+              echo "$plugin versions in sync: $CLAUDE_PLUGIN"
+            else
+              echo "ERROR: $plugin version is out of sync — its Claude/Cursor manifests and both marketplace entries must match" >&2
+              exit 1
+            fi
+          done
 
-      # clover-for-developers is versioned independently of clover, but its own
-      # two version locations (its manifest + the marketplace entry) must agree.
-      - name: Check clover-for-developers version is in sync
+      # Every MCP-bearing plugin must expose the same server on both IDEs: the
+      # Claude side reads .mcp.json (${user_config.*} placeholders), the Cursor
+      # side reads mcpServers in .cursor-plugin/plugin.json (${VAR} placeholders
+      # declared under "variables"). The syntaxes are not interchangeable, so
+      # the two are separate files — this check keeps their endpoints identical.
+      - name: Check MCP server endpoints match across agent IDEs
         run: |
-          DEV_PLUGIN=$(jq -r '.version' clover-for-developers/.claude-plugin/plugin.json)
-          DEV_MARKET=$(jq -r '.plugins[] | select(.name == "clover-for-developers") | .version' .claude-plugin/marketplace.json)
-          echo "clover-for-developers/plugin=$DEV_PLUGIN marketplace=$DEV_MARKET"
-          if [ -n "$DEV_PLUGIN" ] && [ "$DEV_PLUGIN" = "$DEV_MARKET" ]; then
-            echo "clover-for-developers versions in sync: $DEV_PLUGIN"
-          else
-            echo "ERROR: clover-for-developers version is out of sync between its manifest and the marketplace entry" >&2
-            exit 1
-          fi
+          for plugin in clover-for-security-teams clover-for-developers; do
+            CLAUDE_URL=$(jq -r --arg name "$plugin" '.mcpServers[$name].url' "$plugin/.mcp.json")
+            CURSOR_URL=$(jq -r --arg name "$plugin" '.mcpServers[$name].url' "$plugin/.cursor-plugin/plugin.json")
+            CLAUDE_PATH=${CLAUDE_URL#*\}}
+            CURSOR_PATH=${CURSOR_URL#*\}}
+            echo "$plugin: claude=$CLAUDE_URL cursor=$CURSOR_URL"
+            if [ -n "$CLAUDE_PATH" ] && [ "$CLAUDE_PATH" = "$CURSOR_PATH" ]; then
+              echo "$plugin MCP endpoint in sync: $CLAUDE_PATH"
+            else
+              echo "ERROR: $plugin MCP endpoint differs between .mcp.json and .cursor-plugin/plugin.json" >&2
+              exit 1
+            fi
+            # The Cursor URL must interpolate a variable the manifest declares.
+            CURSOR_VAR=$(printf '%s' "$CURSOR_URL" | sed -n 's/^\${\([A-Za-z0-9_]*\)}.*/\1/p')
+            if [ -z "$CURSOR_VAR" ] || [ "$(jq -r --arg v "$CURSOR_VAR" '.variables.properties | has($v)' "$plugin/.cursor-plugin/plugin.json")" != "true" ]; then
+              echo "ERROR: $plugin Cursor MCP url must start with a \${VAR} declared in .variables.properties" >&2
+              exit 1
+            fi
+            echo "$plugin Cursor variable declared: $CURSOR_VAR"
+          done
 
       - name: Validate hooks manifests
         run: |

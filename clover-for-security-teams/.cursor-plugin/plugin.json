@@ -1,0 +1,27 @@
+{
+  "name": "clover-for-security-teams",
+  "version": "0.1.12",
+  "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
+  "author": {
+    "name": "Clover Security"
+  },
+  "homepage": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents",
+  "repository": "https://github.com/clover-security-public/agentic-security-marketplace.git",
+  "keywords": ["security", "appsec", "security-review", "threat-modeling", "clover"],
+  "variables": {
+    "type": "object",
+    "properties": {
+      "CLOVER_STREAMING_URL": {
+        "type": "string",
+        "title": "Clover streaming URL",
+        "description": "Base URL of your Clover environment. Leave the default unless Clover runs in your own environment (e.g. https://streaming.acme.example.com).",
+        "default": "https://streaming.cloversec.io"
+      }
+    }
+  },
+  "mcpServers": {
+    "clover-for-security-teams": {
+      "url": "${CLOVER_STREAMING_URL}/streaming/security-team/mcp"
+    }
+  }
+}

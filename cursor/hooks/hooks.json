@@ -3,17 +3,17 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "bash \"${CURSOR_PLUGIN_ROOT}/cursor/scripts/setup.sh\""
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook\" cursor-setup"
       }
     ],
     "beforeSubmitPrompt": [
       {
-        "command": "bash \"${CURSOR_PLUGIN_ROOT}/cursor/scripts/run-hook.sh\" log-prompt"
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook\" cursor-log-prompt"
       }
     ],
     "stop": [
       {
-        "command": "bash \"${CURSOR_PLUGIN_ROOT}/cursor/scripts/run-hook.sh\" review-plan-stop",
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook\" cursor-review-plan-stop",
         "timeout": 300,
         "loop_limit": 3
       }

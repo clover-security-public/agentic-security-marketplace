@@ -1,2 +1,11 @@
 *.sh text eol=lf
 *.exe binary
+
+# The Cursor launcher is extensionless so one hooks.json command can reach both
+# platforms, so *.sh does not cover it. It is read by a POSIX shell and must keep
+# LF endings; CRLF would make the shebang line fail.
+cursor/scripts/clover-hook text eol=lf
+
+# cmd.exe is unreliable with LF-only batch files -- parenthesised blocks and
+# labels can misparse -- so the Windows launcher must be checked out with CRLF.
+*.cmd text eol=crlf

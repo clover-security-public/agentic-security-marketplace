@@ -173,13 +173,19 @@ jobs:
           if [ "$CLOVER_RELEASE" = true ] && ! tag_exists "$CLOVER_TAG"; then
             # Build the self-contained offline (air-gapped) bundle first, so a
             # build failure aborts before we create + push the tag.
+            # Build the air-gapped ORG bundle first — it clears dist/ on entry.
             bash claude/scripts/build-org-zip.sh
             # Version-less copy so docs can link a permanent download URL.
             cp dist/clover-plugin-v*.zip dist/clover-plugin.zip
+            # Then the single-plugin STORE packages (one per agent), which are
+            # what gets uploaded to the plugin stores. Attaching them per release
+            # means a submission is download-an-asset rather than a hand build.
+            bash tools/build-store-package.sh
             git tag "$CLOVER_TAG"
             git push origin "$CLOVER_TAG"
             gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --latest --generate-notes \
-              runtime/clover-hook-* dist/clover-plugin-v*.zip dist/clover-plugin.zip
+              runtime/clover-hook-* dist/clover-plugin-v*.zip dist/clover-plugin.zip \
+              dist/clover-claude-v*.zip dist/clover-cursor-v*.zip
           fi
 
           # Secondary plugin: never steal the "Latest" flag from clover.

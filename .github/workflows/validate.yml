@@ -51,6 +51,14 @@ jobs:
           done
           echo "OK: hook payload ships in runtime/, no top-level bin/"
 
+      # Build the packages that get uploaded to the plugin stores. The builder
+      # asserts the store's rules against the staged tree (exactly one
+      # plugin.json, no top-level bin/, every platform binary present and
+      # executable, the manifest's hook config actually included), so a change
+      # that would produce an upload the store bounces fails here instead.
+      - name: Build the store packages
+        run: bash tools/build-store-package.sh
+
       - name: Check versions are in sync across all agent IDEs
         run: |
           CLAUDE_PLUGIN=$(jq -r '.version' .claude-plugin/plugin.json)
@@ -104,7 +112,7 @@ jobs:
 
       - name: Check scripts are executable
         run: |
-          for f in claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh; do
+          for f in claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh tools/*.sh; do
             if [ ! -x "$f" ]; then
               echo "ERROR: $f is not executable"
               exit 1
@@ -118,4 +126,4 @@ jobs:
       - name: Shellcheck
         run: |
           sudo apt-get install -y shellcheck > /dev/null 2>&1
-          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh || true
+          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh tools/*.sh || true

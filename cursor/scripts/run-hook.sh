@@ -53,7 +53,7 @@ if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
     mingw*|msys*|cygwin*|windows_nt*) OS=windows; EXE_SUFFIX=.exe ;;
   esac
   case "$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
-  BIN="${ROOT}/binaries/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
+  BIN="${ROOT}/runtime/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
 fi
 
 if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then

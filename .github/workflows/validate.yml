@@ -32,24 +32,24 @@ jobs:
       # The claude.ai plugin store rejects any plugin that ships a top-level
       # bin/ directory: Claude Code adds it to PATH on the CLI, but those
       # executables are never shown on the admin approval surface. Clover's hook
-      # payload therefore lives in binaries/, which setup.sh deploys into
+      # payload therefore lives in runtime/, which setup.sh deploys into
       # CLAUDE_PLUGIN_DATA and the hooks exec from there. Guard both halves so a
       # future change can't silently reintroduce bin/ or drop the payload.
       - name: Reject a top-level bin/ directory
         run: |
           for plugin_root in . clover-for-security-teams clover-for-developers; do
             if [ -e "$plugin_root/bin" ]; then
-              echo "ERROR: $plugin_root/bin exists — the claude.ai plugin store rejects plugins that ship a top-level bin/. Ship executables in binaries/ and declare entry points via hooks instead." >&2
+              echo "ERROR: $plugin_root/bin exists — the claude.ai plugin store rejects plugins that ship a top-level bin/. Ship executables in runtime/ and declare entry points via hooks instead." >&2
               exit 1
             fi
           done
           for name in clover-hook-darwin-arm64 clover-hook-darwin-amd64 clover-hook-linux-amd64 clover-hook-linux-arm64 clover-hook-windows-amd64.exe clover-hook-windows-arm64.exe; do
-            if [ ! -f "binaries/$name" ]; then
-              echo "ERROR: binaries/$name is missing — the hook payload is incomplete" >&2
+            if [ ! -f "runtime/$name" ]; then
+              echo "ERROR: runtime/$name is missing — the hook payload is incomplete" >&2
               exit 1
             fi
           done
-          echo "OK: hook payload ships in binaries/, no top-level bin/"
+          echo "OK: hook payload ships in runtime/, no top-level bin/"
 
       - name: Check versions are in sync across all agent IDEs
         run: |

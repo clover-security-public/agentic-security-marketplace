@@ -7,11 +7,11 @@
 #   claude/hooks/hooks.json                          (hook config)
 #   claude/scripts/{setup.sh,run-hook.sh}            (runtime, shipped as-is)
 #   claude/skills/                                   (if present)
-#   bin/clover-hook-{darwin,linux}-{arm64,amd64}
-#   bin/clover-hook-windows-{arm64,amd64}.exe        (all six binaries)
+#   binaries/clover-hook-{darwin,linux}-{arm64,amd64}
+#   binaries/clover-hook-windows-{arm64,amd64}.exe   (all six binaries)
 #   README.md
 #
-# setup.sh already prefers the bundled binary under ${CLAUDE_PLUGIN_ROOT}/bin,
+# setup.sh already prefers the bundled binary under ${CLAUDE_PLUGIN_ROOT}/binaries,
 # so it runs fully offline; the GitHub Releases path is only a fallback when a
 # bundled binary is missing. That's why we ship the real setup.sh verbatim
 # rather than regenerating a stripped-down copy.
@@ -32,7 +32,7 @@ echo "Building offline distribution for clover-plugin v${VERSION}"
 
 STAGE="dist/clover-plugin"
 rm -rf dist
-mkdir -p "$STAGE/.claude-plugin" "$STAGE/claude/hooks" "$STAGE/claude/scripts" "$STAGE/bin"
+mkdir -p "$STAGE/.claude-plugin" "$STAGE/claude/hooks" "$STAGE/claude/scripts" "$STAGE/binaries"
 
 # Manifest. plugin.json ships as-is; marketplace.json is rewritten so the
 # bundle is a self-contained offline marketplace: point the clover plugin's
@@ -66,16 +66,17 @@ if [ -d claude/skills ]; then
     cp -R claude/skills "$STAGE/claude/"
 fi
 
-# Bundle the six platform binaries from bin/. Source lives in a private repo;
-# bin/ is the canonical artifact location, kept in sync with the latest release.
+# Bundle the six platform binaries from binaries/. Source lives in a private
+# repo; binaries/ is the canonical artifact location, kept in sync with the
+# latest release. (Deliberately not bin/ — see claude/scripts/setup.sh.)
 for target in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64 windows-arm64.exe windows-amd64.exe; do
-    SRC="bin/clover-hook-${target}"
+    SRC="binaries/clover-hook-${target}"
     if [ ! -f "$SRC" ]; then
         echo "ERROR: ${SRC} is missing — pull binaries from the latest release first:" >&2
-        echo "  gh release download v${VERSION} --repo clover-security/clover-claude-plugin --dir bin/ --clobber --pattern 'clover-hook-*'" >&2
+        echo "  gh release download v${VERSION} --repo clover-security/clover-claude-plugin --dir binaries/ --clobber --pattern 'clover-hook-*'" >&2
         exit 1
     fi
-    cp "$SRC" "$STAGE/bin/"
+    cp "$SRC" "$STAGE/binaries/"
     echo "  bundled ${target}"
 done
 

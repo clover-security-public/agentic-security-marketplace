@@ -228,7 +228,13 @@ mkdir -p "$BINARY_DIR"
 # Primary path: copy the bundled binary that ships with the plugin clone.
 # This is the only reliable path — it works without gh CLI auth, without
 # a working network, and across all org rollout configurations.
-BUNDLED="${CLAUDE_PLUGIN_ROOT}/bin/${ASSET_NAME}"
+#
+# The bundled binaries live in binaries/, NOT bin/: Claude Code adds a
+# plugin's top-level bin/ to PATH, and the claude.ai plugin store rejects
+# packages that ship one (those entries never surface on the admin approval
+# surface). Clover's only entry points are the hooks in claude/hooks/hooks.json,
+# which deploy this payload into CLAUDE_PLUGIN_DATA and exec it from there.
+BUNDLED="${CLAUDE_PLUGIN_ROOT}/binaries/${ASSET_NAME}"
 if [ -f "$BUNDLED" ]; then
   cp "$BUNDLED" "$BINARY"
   chmod +x "$BINARY"

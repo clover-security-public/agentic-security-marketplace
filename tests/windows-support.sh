@@ -19,7 +19,7 @@ mkdir -p \
   "$MOCK_BIN" \
   "$PLUGIN_ROOT/.claude-plugin" \
   "$PLUGIN_ROOT/.cursor-plugin" \
-  "$PLUGIN_ROOT/bin" \
+  "$PLUGIN_ROOT/binaries" \
   "$PLUGIN_ROOT/claude/scripts" \
   "$PLUGIN_ROOT/cursor/scripts" \
   "$TEST_HOME"
@@ -41,19 +41,19 @@ cp "$ROOT/claude/scripts/run-hook.sh" "$PLUGIN_ROOT/claude/scripts/"
 cp "$ROOT/cursor/scripts/setup.sh" "$PLUGIN_ROOT/cursor/scripts/"
 cp "$ROOT/cursor/scripts/run-hook.sh" "$PLUGIN_ROOT/cursor/scripts/"
 
-cat > "$PLUGIN_ROOT/bin/clover-hook-windows-amd64.exe" <<'EOF'
+cat > "$PLUGIN_ROOT/binaries/clover-hook-windows-amd64.exe" <<'EOF'
 #!/usr/bin/env bash
 printf 'fake-hook:%s\n' "$*"
 EOF
-cat > "$PLUGIN_ROOT/bin/clover-hook-windows-arm64.exe" <<'EOF'
+cat > "$PLUGIN_ROOT/binaries/clover-hook-windows-arm64.exe" <<'EOF'
 #!/usr/bin/env bash
 printf 'fake-hook:%s\n' "$*"
 EOF
-cat > "$PLUGIN_ROOT/bin/clover-hook-darwin-arm64" <<'EOF'
+cat > "$PLUGIN_ROOT/binaries/clover-hook-darwin-arm64" <<'EOF'
 #!/usr/bin/env bash
 printf 'fake-hook:%s\n' "$*"
 EOF
-chmod +x "$PLUGIN_ROOT"/bin/*
+chmod +x "$PLUGIN_ROOT"/binaries/*
 
 for target in clover-hook-windows-amd64.exe clover-hook-windows-arm64.exe; do
   if ! grep -q "$target" "$ROOT/.github/workflows/release.yml"; then

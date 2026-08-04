@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Clover Cursor plugin — sessionStart hook. Two jobs:
-#   1. Select the bundled platform binary (bin/clover-hook-<os>-<arch>) and
+#   1. Select the bundled platform binary (binaries/clover-hook-<os>-<arch>) and
 #      expose its path as CLOVER_HOOK_BIN.
 #   2. Set up the binary's data dir (token cache + session state) and drop a
 #      copy of the manifest where the binary reads its version.
@@ -32,7 +32,7 @@ case "$ARCH" in
   x86_64) ARCH=amd64 ;;
   aarch64|arm64) ARCH=arm64 ;;
 esac
-BIN="${ROOT}/bin/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
+BIN="${ROOT}/binaries/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
 chmod +x "$BIN" 2>/dev/null || true
 
 # Persistent data dir for the binary's token cache + session state. Cursor has

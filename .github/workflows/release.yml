@@ -28,8 +28,8 @@ jobs:
       - name: Verify binaries present
         run: |
           for name in clover-hook-darwin-arm64 clover-hook-darwin-amd64 clover-hook-linux-amd64 clover-hook-linux-arm64 clover-hook-windows-amd64.exe clover-hook-windows-arm64.exe; do
-            if [ ! -f "bin/$name" ]; then
-              echo "ERROR: bin/$name is missing — push binaries from the source repo before releasing" >&2
+            if [ ! -f "binaries/$name" ]; then
+              echo "ERROR: binaries/$name is missing — push binaries from the source repo before releasing" >&2
               exit 1
             fi
           done
@@ -100,7 +100,7 @@ jobs:
           # .claude-plugin/marketplace.json is excluded so an edit to another
           # plugin's entry there can't trigger a clover release; clover's own
           # entry is kept in lockstep by the bump below.
-          CLOVER_PATHS=(claude cursor bin .claude-plugin/plugin.json .cursor-plugin)
+          CLOVER_PATHS=(claude cursor binaries .claude-plugin/plugin.json .cursor-plugin)
           CLOVER_V=$(jq -r '.version' .claude-plugin/plugin.json)
           CLOVER_RELEASE=false
           if ! tag_exists "v$CLOVER_V"; then
@@ -179,7 +179,7 @@ jobs:
             git tag "$CLOVER_TAG"
             git push origin "$CLOVER_TAG"
             gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --latest --generate-notes \
-              bin/clover-hook-* dist/clover-plugin-v*.zip dist/clover-plugin.zip
+              binaries/clover-hook-* dist/clover-plugin-v*.zip dist/clover-plugin.zip
           fi
 
           # Secondary plugin: never steal the "Latest" flag from clover.

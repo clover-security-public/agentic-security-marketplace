@@ -38,9 +38,9 @@ cp "$ROOT/.claude-plugin/plugin.json" "$PLUGIN_ROOT/.claude-plugin/"
 cp "$ROOT/.cursor-plugin/plugin.json" "$PLUGIN_ROOT/.cursor-plugin/"
 cp "$ROOT/claude/scripts/setup.sh" "$PLUGIN_ROOT/claude/scripts/"
 cp "$ROOT/claude/scripts/run-hook.sh" "$PLUGIN_ROOT/claude/scripts/"
-cp "$ROOT/cursor/scripts/clover-hook" "$PLUGIN_ROOT/cursor/scripts/"
+cp "$ROOT/cursor/scripts/clover-hook.sh" "$PLUGIN_ROOT/cursor/scripts/"
 cp "$ROOT/cursor/scripts/clover-hook.cmd" "$PLUGIN_ROOT/cursor/scripts/"
-chmod +x "$PLUGIN_ROOT/cursor/scripts/clover-hook"
+chmod +x "$PLUGIN_ROOT/cursor/scripts/clover-hook.sh" "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd"
 
 cat > "$PLUGIN_ROOT/bin/clover-hook-windows-amd64.exe" <<'EOF'
 #!/usr/bin/env bash
@@ -81,8 +81,12 @@ if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | any(
   echo "ERROR: a Cursor hook command still invokes bash, which spawns Git Bash on Windows" >&2
   exit 1
 fi
-if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(contains("/cursor/scripts/clover-hook\""))' "$ROOT/cursor/hooks/hooks.json")" != "true" ]; then
-  echo "ERROR: Cursor hooks do not all dispatch through the clover-hook launcher" >&2
+# hooks.json must name the .cmd explicitly. An extensionless name does NOT work:
+# PowerShell matches the literal POSIX launcher this repo also ships, cannot
+# execute it, and ShellExecute spawns a detached console that hangs on stdin --
+# the same visible-window defect as Git Bash. Verified on Windows.
+if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(contains("/cursor/scripts/clover-hook.cmd\""))' "$ROOT/cursor/hooks/hooks.json")" != "true" ]; then
+  echo "ERROR: Cursor hooks do not all dispatch through clover-hook.cmd" >&2
   exit 1
 fi
 if [ "$(jq '[.. | objects | .command? // empty] | map(select(test("\\.sh"))) | length' "$ROOT/cursor/hooks/hooks.json")" != "0" ]; then
@@ -97,21 +101,47 @@ if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(
   exit 1
 fi
 
-# Both halves of the launcher have to ship, and the unix half needs its exec bit.
-for launcher in cursor/scripts/clover-hook cursor/scripts/clover-hook.cmd; do
+# Both halves have to ship, and both need the exec bit: the .cmd because a POSIX
+# shell executes it directly, the .sh because the .cmd execs it.
+for launcher in cursor/scripts/clover-hook.cmd cursor/scripts/clover-hook.sh; do
   if [ ! -f "$ROOT/$launcher" ]; then
     echo "ERROR: missing launcher $launcher" >&2
     exit 1
   fi
+  if [ ! -x "$ROOT/$launcher" ]; then
+    echo "ERROR: $launcher is not executable" >&2
+    exit 1
+  fi
 done
-if [ ! -x "$ROOT/cursor/scripts/clover-hook" ]; then
-  echo "ERROR: cursor/scripts/clover-hook is not executable" >&2
+
+# An extensionless launcher must NOT come back: its mere presence is what let
+# PowerShell shadow the .cmd and spawn a console window.
+if [ -e "$ROOT/cursor/scripts/clover-hook" ]; then
+  echo "ERROR: extensionless cursor/scripts/clover-hook is back; it shadows the .cmd on Windows" >&2
   exit 1
 fi
 
-# Line endings are load-bearing for both launchers: a CRLF shebang breaks the
-# POSIX half, and cmd.exe misparses LF-only batch files.
-if ! git -C "$ROOT" check-attr eol -- cursor/scripts/clover-hook | grep -q 'eol: lf'; then
+# The polyglot's first line carries the whole cross-platform trick: a cmd.exe
+# label (leading ":") that a POSIX shell runs as an exec trampoline, ending in a
+# "#" comment so the CR of this file's CRLF endings is swallowed.
+first_line="$(head -1 "$ROOT/cursor/scripts/clover-hook.cmd" | tr -d '\r')"
+case "$first_line" in
+  :*exec*clover-hook.sh*\#) ;;
+  *)
+    echo "ERROR: clover-hook.cmd line 1 is not the cmd/sh polyglot trampoline: $first_line" >&2
+    exit 1
+    ;;
+esac
+# echo must be silenced immediately, or cmd.exe echoes batch lines onto stdout
+# and corrupts the JSON Cursor parses.
+if [ "$(sed -n '2p' "$ROOT/cursor/scripts/clover-hook.cmd" | tr -d '\r')" != "@echo off" ]; then
+  echo "ERROR: clover-hook.cmd does not silence echo on line 2" >&2
+  exit 1
+fi
+
+# Line endings are load-bearing: cmd.exe misparses LF-only batch files, and a
+# CRLF shebang would break the POSIX half.
+if ! git -C "$ROOT" check-attr eol -- cursor/scripts/clover-hook.sh | grep -q 'eol: lf'; then
   echo "ERROR: the POSIX launcher is not pinned to LF line endings" >&2
   exit 1
 fi
@@ -194,7 +224,7 @@ cursor_result="$(
     CURSOR_PLUGIN_ROOT="$PLUGIN_ROOT" \
     TEST_UNAME_S="Darwin" \
     TEST_UNAME_M="arm64" \
-      "$PLUGIN_ROOT/cursor/scripts/clover-hook" cursor-review-plan
+      "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd" cursor-review-plan
 )"
 if [ "$cursor_result" != "fake-hook:cursor-review-plan" ]; then
   echo "ERROR: Cursor launcher did not exec the platform binary: $cursor_result" >&2
@@ -216,7 +246,7 @@ amd64_result="$(
     CURSOR_PLUGIN_ROOT="$PLUGIN_ROOT" \
     TEST_UNAME_S="Darwin" \
     TEST_UNAME_M="x86_64" \
-      "$PLUGIN_ROOT/cursor/scripts/clover-hook" cursor-log-prompt
+      "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd" cursor-log-prompt
 )"
 if [ "$amd64_result" != "fake-hook:cursor-log-prompt" ]; then
   echo "ERROR: Cursor launcher did not normalise x86_64 to amd64: $amd64_result" >&2
@@ -235,7 +265,7 @@ missing_prompt="$(
     CURSOR_PLUGIN_ROOT="$EMPTY_ROOT" \
     TEST_UNAME_S="Darwin" \
     TEST_UNAME_M="arm64" \
-      "$PLUGIN_ROOT/cursor/scripts/clover-hook" cursor-log-prompt 2>/dev/null
+      "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd" cursor-log-prompt 2>/dev/null
 )"
 missing_prompt_status=$?
 missing_stop="$(
@@ -244,7 +274,7 @@ missing_stop="$(
     CURSOR_PLUGIN_ROOT="$EMPTY_ROOT" \
     TEST_UNAME_S="Darwin" \
     TEST_UNAME_M="arm64" \
-      "$PLUGIN_ROOT/cursor/scripts/clover-hook" cursor-review-plan-stop 2>/dev/null
+      "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd" cursor-review-plan-stop 2>/dev/null
 )"
 missing_stop_status=$?
 set -e

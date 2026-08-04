@@ -3,17 +3,17 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook\" cursor-setup"
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" cursor-setup"
       }
     ],
     "beforeSubmitPrompt": [
       {
-        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook\" cursor-log-prompt"
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" cursor-log-prompt"
       }
     ],
     "stop": [
       {
-        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook\" cursor-review-plan-stop",
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" cursor-review-plan-stop",
         "timeout": 300,
         "loop_limit": 3
       }

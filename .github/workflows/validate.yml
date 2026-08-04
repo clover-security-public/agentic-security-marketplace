@@ -80,12 +80,12 @@ jobs:
             echo "Valid"
           done
 
-      # cursor/scripts holds no .sh any more: its launcher is deliberately
-      # extensionless so one hooks.json command reaches the POSIX half here and
-      # clover-hook.cmd on Windows. The .cmd needs no exec bit on Linux.
+      # cursor/scripts/clover-hook.cmd needs the exec bit too, unusually for a
+      # .cmd: it is the single hooks.json entry point on every platform, and a
+      # POSIX shell executes it directly before it trampolines into the .sh.
       - name: Check scripts are executable
         run: |
-          for f in claude/scripts/*.sh cursor/scripts/clover-hook clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh; do
+          for f in claude/scripts/*.sh cursor/scripts/*.sh cursor/scripts/clover-hook.cmd clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh; do
             if [ ! -x "$f" ]; then
               echo "ERROR: $f is not executable"
               exit 1
@@ -99,4 +99,4 @@ jobs:
       - name: Shellcheck
         run: |
           sudo apt-get install -y shellcheck > /dev/null 2>&1
-          shellcheck claude/scripts/*.sh cursor/scripts/clover-hook clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh || true
+          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh || true

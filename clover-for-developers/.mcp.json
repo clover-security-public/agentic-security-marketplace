@@ -2,7 +2,7 @@
   "mcpServers": {
     "clover-for-developers": {
       "type": "http",
-      "url": "https://streaming.cloversec.io/streaming/developer/mcp"
+      "url": "${PLUGIN_STREAMING_URL:-https://streaming.cloversec.io}/streaming/developer/mcp"
     }
   }
 }

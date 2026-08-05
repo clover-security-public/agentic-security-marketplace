@@ -193,21 +193,33 @@ jobs:
             echo "$plugin: claude=$CLAUDE_URL cursor=$CURSOR_URL"
 
             # Claude's URL must stay interpolated, or self-hosted users lose
-            # their streaming_url override.
+            # their streaming_url override (the install-time prompt and
+            # /plugin configure both bind to ${user_config.*}).
             case "$CLAUDE_URL" in
               *'${user_config.streaming_url}'*) ;;
               *) echo "ERROR: $plugin/claude-mcp.json url must interpolate \${user_config.streaming_url}" >&2; exit 1 ;;
             esac
 
-            # The Cursor URL must be concrete: no unresolvable placeholder.
+            # Cursor cannot resolve ${user_config.*} — it has no userConfig
+            # concept — but it does support shell-style ${VAR:-default}
+            # substitution, so the root URL uses that: self-hosted Cursor users
+            # set PLUGIN_STREAMING_URL, everyone else falls through to the
+            # concrete default. Claude resolves the same form (verified on
+            # 2.1.222, both with the var set and unset), which matters because it
+            # parses this file too and a config it rejects would take the
+            # plugin's whole MCP setup down.
             case "$CURSOR_URL" in
-              https://*'${'*) echo "ERROR: $plugin/.mcp.json url must not contain a placeholder (Cursor does not interpolate plugin variables)" >&2; exit 1 ;;
-              https://*) ;;
-              *) echo "ERROR: $plugin/.mcp.json url must be an absolute https URL" >&2; exit 1 ;;
+              *'${user_config'*)
+                echo "ERROR: $plugin/.mcp.json must not use \${user_config.*} — Cursor cannot interpolate it and the server dies with a misleading \"fetch failed\"" >&2; exit 1 ;;
+              '${PLUGIN_STREAMING_URL:-https://'*)
+                ;;
+              *)
+                echo "ERROR: $plugin/.mcp.json url must be \${PLUGIN_STREAMING_URL:-https://<host>}/... so Cursor resolves a concrete default and self-hosted users can override it" >&2; exit 1 ;;
             esac
 
-            # Both IDEs must target the same endpoint path.
-            if [ "${CLAUDE_URL#*\}}" != "${CURSOR_URL#https://*.io}" ]; then
+            # Both IDEs must target the same endpoint path (strip each URL's
+            # leading ${...} expansion and compare what follows).
+            if [ "${CLAUDE_URL#*\}}" != "${CURSOR_URL#*\}}" ]; then
               echo "ERROR: $plugin MCP endpoint path differs between $plugin/claude-mcp.json and $plugin/.mcp.json" >&2
               exit 1
             fi

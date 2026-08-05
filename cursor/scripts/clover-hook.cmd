@@ -36,12 +36,12 @@ rem valid fallback when the arm64 one is missing from the install.
 if not exist "%BIN%" set "BIN=%ROOT%\bin\clover-hook-windows-amd64.exe"
 
 if not exist "%BIN%" (
-    rem Fail open, mirroring clover-hook.sh: stderr for diagnosis, the per-hook
-    rem safe default on stdout. sessionStart and the stop hook read empty stdout
-    rem as "no opinion", so they print nothing.
+    rem Fail open, mirroring clover-hook.sh: stderr for diagnosis; log-prompt
+    rem gets its "carry on" payload; every other hook stays SILENT. For a
+    rem permission gate an explicit allow would override Cursor's own permission
+    rem flow, and silence already fails open (failClosed defaults to false).
     echo clover: hook binary not found at %BIN% 1>&2
     if /I "%~1"=="cursor-log-prompt" echo {"continue":true}
-    if /I "%~1"=="cursor-review-plan" echo {"permission":"allow"}
     exit /b 0
 )
 

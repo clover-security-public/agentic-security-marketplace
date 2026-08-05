@@ -174,6 +174,16 @@ if grep -qi "bash" "$ROOT/cursor/scripts/clover-hook.cmd"; then
   fi
 fi
 
+# Deny-or-nothing, at the launcher level too: a permission gate's only safe
+# non-blocking outcome is silence, so neither launcher may ever emit an
+# explicit permission allow -- not even as a missing-binary fallback.
+for launcher in cursor/scripts/clover-hook.sh cursor/scripts/clover-hook.cmd; do
+  if grep -q '"permission":"allow"' "$ROOT/$launcher"; then
+    echo "ERROR: $launcher emits an explicit permission allow" >&2
+    exit 1
+  fi
+done
+
 PATH="$MOCK_BIN:$PATH" \
 HOME="$TEST_HOME" \
 CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \

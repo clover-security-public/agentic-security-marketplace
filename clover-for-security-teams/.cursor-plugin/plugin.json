@@ -14,5 +14,16 @@
     "security-review",
     "threat-modeling",
     "clover"
-  ]
+  ],
+  "variables": {
+    "type": "object",
+    "properties": {
+      "PLUGIN_STREAMING_URL": {
+        "type": "string",
+        "title": "Clover streaming URL",
+        "description": "Base URL of your Clover environment. Leave the default unless Clover runs in your own environment (e.g. https://streaming.acme.example.com).",
+        "default": "https://streaming.cloversec.io"
+      }
+    }
+  }
 }

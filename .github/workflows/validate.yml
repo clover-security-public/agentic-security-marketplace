@@ -57,7 +57,7 @@ jobs:
             CLAUDE_PLUGIN=$(jq -r '.version' "$plugin/.claude-plugin/plugin.json")
             CURSOR_PLUGIN=$(jq -r '.version' "$plugin/.cursor-plugin/plugin.json")
             CLAUDE_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .claude-plugin/marketplace.json)
-            CURSOR_MARKET=$(jq -r --arg name "$plugin-cursor" '.plugins[] | select(.name == $name) | .version' .cursor-plugin/marketplace.json)
+            CURSOR_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .cursor-plugin/marketplace.json)
             echo "$plugin: claude/plugin=$CLAUDE_PLUGIN cursor/plugin=$CURSOR_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/marketplace=$CURSOR_MARKET"
             if [ -n "$CLAUDE_PLUGIN" ] \
               && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] \

@@ -103,8 +103,19 @@ if ! grep -q 'clover-hook-windows-%ARCH%\.exe' "$ROOT/cursor/scripts/clover-hook
   echo "ERROR: clover-hook.cmd does not select a per-arch Windows build" >&2
   exit 1
 fi
-if grep -i "bash" "$ROOT/cursor/scripts/clover-hook.cmd" | grep -vq "rem"; then
-  echo "ERROR: clover-hook.cmd invokes bash" >&2
+# Line 1 must keep invoking the scripts through bash: they use pipefail, a
+# bashism a dash /bin/sh rejects, and the old hooks.json always ran them via
+# bash. cmd.exe never executes line 1, so this cannot reach Windows.
+case "$first_line" in
+  *"exec bash"*) ;;
+  *)
+    echo "ERROR: the POSIX branch no longer runs the scripts through bash" >&2
+    exit 1
+    ;;
+esac
+# The batch half (everything after line 1) must never reach for bash.
+if tail -n +2 "$ROOT/cursor/scripts/clover-hook.cmd" | grep -i "bash" | grep -vq "rem"; then
+  echo "ERROR: the Windows batch half of clover-hook.cmd invokes bash" >&2
   exit 1
 fi
 for sub in cursor-setup cursor-log-prompt cursor-review-plan-stop; do

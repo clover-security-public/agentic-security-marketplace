@@ -1,4 +1,4 @@
-:; d="$(dirname "$0")"; case "${1:-}" in setup) exec "$d/setup.sh" "$@";; *) exec "$d/run-hook.sh" "$@";; esac #
+:; d="$(dirname "$0")"; case "${1:-}" in setup) exec bash "$d/setup.sh" "$@";; *) exec bash "$d/run-hook.sh" "$@";; esac #
 @echo off
 setlocal EnableExtensions
 rem The single entry point named in cursor/hooks/hooks.json, for every platform.
@@ -8,8 +8,10 @@ rem runs Windows hook commands through PowerShell. Naming bash or a .sh there
 rem spawns Git Bash's console bash.exe -- a visible window on every prompt --
 rem so the command must be a .cmd. Line 1 is a polyglot: cmd.exe reads it as a
 rem label and skips to the batch below, while a POSIX shell executes it and
-rem execs the existing setup.sh / run-hook.sh, so macOS and Linux behavior is
-rem byte-identical to before this file existed. The trailing "#" swallows the
+rem execs the existing setup.sh / run-hook.sh THROUGH BASH -- exactly how the
+rem old hooks.json invoked them (they use pipefail, a bashism dash rejects) --
+rem so macOS and Linux behavior is byte-identical to before this file existed.
+rem cmd.exe never executes line 1, so the bash there is unreachable on Windows. The trailing "#" swallows the
 rem CR of the CRLF endings cmd.exe requires.
 rem
 rem On Windows the shell scripts cannot run (no bash, no jq), so the hook

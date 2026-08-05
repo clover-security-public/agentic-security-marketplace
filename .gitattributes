@@ -1,2 +1,9 @@
 *.sh text eol=lf
 *.exe binary
+
+# clover-hook.cmd is the single Cursor hooks.json entry point: a cmd/sh
+# polyglot whose first line is a label to cmd.exe and an exec into the existing
+# shell scripts for POSIX. cmd.exe misparses LF-only batch files, so it must be
+# checked out with CRLF; the shell tolerates that because line 1 ends in a
+# comment that swallows the CR.
+*.cmd text eol=crlf

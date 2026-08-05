@@ -44,10 +44,8 @@ fi
 if [ ! -x "$BIN" ]; then
     # Fail open: Clover must never stand between a developer and their agent.
     # stderr is surfaced in Cursor's hook log for diagnosis. log-prompt gets its
-    # "carry on" payload; every other hook stays SILENT — for a permission gate
-    # like cursor-review-plan an explicit allow would override Cursor's own
-    # permission flow, and silence already fails open (failClosed defaults to
-    # false). Same deny-or-nothing rule as the binary.
+    # "carry on" payload; the other hooks stay silent, which Cursor already
+    # treats as "no opinion" (hooks fail open by default).
     echo "clover: hook binary not found at ${BIN}" >&2
     case "${1:-}" in
         cursor-log-prompt) printf '{"continue":true}\n' ;;

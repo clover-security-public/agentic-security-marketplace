@@ -228,15 +228,15 @@ fi
 # verbatim. Only the unix half is executable here; the .cmd is covered by the
 # static assertions above because CI has no Windows runner.
 cursor_result="$(
-  printf '{"tool_name":"NotCreatePlan"}\n' | \
+  printf '{}\n' | \
     PATH="$MOCK_BIN:$PATH" \
     HOME="$TEST_HOME" \
     CURSOR_PLUGIN_ROOT="$PLUGIN_ROOT" \
     TEST_UNAME_S="Darwin" \
     TEST_UNAME_M="arm64" \
-      "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd" cursor-review-plan
+      "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd" cursor-review-plan-stop
 )"
-if [ "$cursor_result" != "fake-hook:cursor-review-plan" ]; then
+if [ "$cursor_result" != "fake-hook:cursor-review-plan-stop" ]; then
   echo "ERROR: Cursor launcher did not exec the platform binary: $cursor_result" >&2
   exit 1
 fi

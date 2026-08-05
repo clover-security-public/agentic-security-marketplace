@@ -1,5 +1,6 @@
 {
-  "name": "clover-for-security-teams-cursor",
+  "name": "clover-for-security-teams",
+  "displayName": "Clover for Security Teams",
   "version": "0.1.12",
   "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
   "author": {

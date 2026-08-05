@@ -5,6 +5,7 @@
   "author": {
     "name": "Clover Security"
   },
+  "mcpServers": "./claude-mcp.json",
   "userConfig": {
     "streaming_url": {
       "type": "string",

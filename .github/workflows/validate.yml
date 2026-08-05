@@ -14,9 +14,9 @@ jobs:
         run: |
           for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json \
                           clover-for-security-teams/.claude-plugin/plugin.json \
-                          clover-for-security-teams-cursor/.cursor-plugin/plugin.json \
+                          clover-for-security-teams/.cursor-plugin/plugin.json \
                           clover-for-developers/.claude-plugin/plugin.json \
-                          clover-for-developers-cursor/.cursor-plugin/plugin.json; do
+                          clover-for-developers/.cursor-plugin/plugin.json; do
             echo "Checking $manifest..."
             jq empty "$manifest"
             NAME=$(jq -r '.name' "$manifest")
@@ -55,7 +55,7 @@ jobs:
         run: |
           for plugin in clover-for-security-teams clover-for-developers; do
             CLAUDE_PLUGIN=$(jq -r '.version' "$plugin/.claude-plugin/plugin.json")
-            CURSOR_PLUGIN=$(jq -r '.version' "$plugin-cursor/.cursor-plugin/plugin.json")
+            CURSOR_PLUGIN=$(jq -r '.version' "$plugin/.cursor-plugin/plugin.json")
             CLAUDE_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .claude-plugin/marketplace.json)
             CURSOR_MARKET=$(jq -r --arg name "$plugin-cursor" '.plugins[] | select(.name == $name) | .version' .cursor-plugin/marketplace.json)
             echo "$plugin: claude/plugin=$CLAUDE_PLUGIN cursor/plugin=$CURSOR_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/marketplace=$CURSOR_MARKET"
@@ -70,63 +70,149 @@ jobs:
             fi
           done
 
-      # Cursor cannot share a plugin directory with Claude. Cursor auto-detects
-      # a plugin-root .mcp.json and it BEATS every alternative (verified on
-      # Cursor 3.13.25: .mcp.json won over mcp.json, and mcp.json won over an
-      # inline mcpServers block). Since Claude's .mcp.json must stay exactly as
-      # it is, Cursor gets its own directory, "<plugin>-cursor", holding only a
-      # .cursor-plugin manifest, its own .mcp.json, and a copy of the skills.
+      # Both IDEs share one directory per plugin, holding a .claude-plugin and a
+      # .cursor-plugin manifest side by side. The two MCP configs are kept apart
+      # by filename, which is what makes the shared directory possible:
       #
-      # Cursor also does NOT apply a "variables" default and lowercases ${VAR}
-      # names before lookup, so the Cursor URL is concrete, not interpolated.
-      # Self-hosted users override it in their own ~/.cursor/mcp.json.
-      - name: Check Cursor plugin directories
+      #   .mcp.json        concrete https URL — Cursor auto-detects this name
+      #   claude-mcp.json  ${user_config.streaming_url} — invisible to Cursor
+      #
+      # Cursor's discovery list is hard-coded to exactly [".mcp.json","mcp.json"]
+      # (Cursor 3.13.25, cursor-agent-exec/dist/main.js), so it never sees
+      # claude-mcp.json. Claude reaches its own file through the manifest's
+      # "mcpServers" path field, and when both files declare the SAME server key
+      # the manifest-declared one wins, so Claude registers exactly one server
+      # with the interpolated URL (verified on Claude Code 2.1.222).
+      #
+      # Cursor does NOT apply a "variables" default and lowercases ${VAR} names
+      # before lookup, so the Cursor URL must stay concrete. Self-hosted users
+      # override it in their own ~/.cursor/mcp.json.
+      - name: Check shared Claude/Cursor plugin directories
         run: |
           for plugin in clover-for-security-teams clover-for-developers; do
-            CURSOR_DIR="$plugin-cursor"
-
-            # The Cursor plugin name carries a "-cursor" suffix on purpose.
-            # Cursor auto-loads Claude plugins from ~/.claude/plugins, and two
-            # plugins sharing a name collide with the Claude-sourced copy
-            # winning — which would make this plugin silently unreachable for
-            # anyone who also uses Claude Code. Verified on Cursor 3.13.25.
-            if [ "$(jq -r '.name' "$CURSOR_DIR/.cursor-plugin/plugin.json")" != "$plugin-cursor" ]; then
-              echo "ERROR: $CURSOR_DIR must be named '$plugin-cursor' so it cannot be shadowed by the Claude-installed plugin of the same name" >&2
-              exit 1
-            fi
-
-            # A Cursor plugin root must not carry any Claude plugin files, or
-            # Cursor would read Claude's ${user_config.*} placeholder and fail.
-            for forbidden in .claude-plugin claude.mcp.json mcp.json; do
-              if [ -e "$CURSOR_DIR/$forbidden" ]; then
-                echo "ERROR: $CURSOR_DIR/$forbidden must not exist — Cursor must resolve its own .mcp.json" >&2
+            # The Cursor plugin name carries a "-cursor" suffix on purpose, even
+            # though both manifests now share one directory. Cursor auto-loads
+            # Claude plugins from ~/.claude/plugins ("loadClaudePlugin") on top
+            # of user-local plugins, so a Cursor user who also runs Claude Code
+            # has two copies of a same-named plugin and the Claude-sourced one
+            # wins. That copy is whatever version the user has *installed*, and
+            # its root .mcp.json holds Claude's ${user_config.*} placeholder,
+            # which Cursor cannot resolve — the server then dies with a
+            # misleading "fetch failed".
+            #
+            # Sharing the directory does NOT make that collision safe: the
+            # shadowing copy is the published plugin on disk, not this tree.
+            # Re-verified on Cursor 3.13.25 / installed clover-for-developers
+            # 0.1.2 — with clean names both servers failed to connect
+            # ("Transient error connecting to streamableHttp server: fetch
+            # failed") while the endpoint itself answered HTTP 401 normally.
+            # There is no Cursor setting to opt out of loadClaudePlugin.
+            # Both IDEs' manifests carry the SAME name. Cursor auto-loads Claude
+            # plugins from ~/.claude/plugins ("loadClaudePlugin") on top of
+            # user-local plugins, so a Cursor user who also runs Claude Code has
+            # two same-named copies and one shadows the other.
+            #
+            # That shadowing is safe here, but only because of the file split
+            # below: the root .mcp.json is concrete, so whichever copy Cursor
+            # resolves it gets a working URL. It is NOT safe against a copy
+            # published before this layout, whose root .mcp.json still held
+            # ${user_config.streaming_url} — Cursor cannot interpolate that and
+            # the server dies with a misleading "fetch failed" (observed on
+            # Cursor 3.13.25 against installed clover-for-developers 0.1.2).
+            #
+            # Consequence for releases: this layout must reach the Claude
+            # marketplace BEFORE the Cursor plugin ships under the same name, or
+            # Cursor users still on an older Claude plugin break silently.
+            for manifest in .claude-plugin .cursor-plugin; do
+              if [ "$(jq -r '.name' "$plugin/$manifest/plugin.json")" != "$plugin" ]; then
+                echo "ERROR: $plugin/$manifest/plugin.json must be named '$plugin' — both IDEs share one identity" >&2
                 exit 1
               fi
             done
 
-            CLAUDE_URL=$(jq -r --arg name "$plugin" '.mcpServers[$name].url' "$plugin/.mcp.json")
-            CURSOR_URL=$(jq -r --arg name "$plugin" '.mcpServers[$name].url' "$CURSOR_DIR/.mcp.json")
+            # Cursor renders the title-cased id for locally-installed plugins and
+            # ignores displayName there, so the id itself has to read well. Keep
+            # displayName set anyway — the marketplace-entry schema accepts it,
+            # so marketplace installs may honour it — and never let either the id
+            # or the label leak an IDE name.
+            for source in "$plugin/.cursor-plugin/plugin.json" .cursor-plugin/marketplace.json; do
+              case "$source" in
+                *marketplace.json) DISPLAY=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .displayName // ""' "$source") ;;
+                *) DISPLAY=$(jq -r '.displayName // ""' "$source") ;;
+              esac
+              if [ -z "$DISPLAY" ]; then
+                echo "ERROR: $source is missing a displayName for $plugin" >&2
+                exit 1
+              fi
+              case "$DISPLAY$plugin" in
+                *cursor*|*Cursor*) echo "ERROR: $source must not expose an IDE name to users (id='$plugin', displayName='$DISPLAY')" >&2; exit 1 ;;
+              esac
+            done
+
+            # Claude must reach its config by path, or it would fall back to the
+            # root .mcp.json and silently use Cursor's non-overridable URL.
+            if [ "$(jq -r '.mcpServers' "$plugin/.claude-plugin/plugin.json")" != "./claude-mcp.json" ]; then
+              echo "ERROR: $plugin/.claude-plugin/plugin.json must set \"mcpServers\": \"./claude-mcp.json\"" >&2
+              exit 1
+            fi
+
+            # Cursor must never be able to auto-detect Claude's config: the only
+            # names it looks for are .mcp.json and mcp.json.
+            if [ -e "$plugin/mcp.json" ]; then
+              echo "ERROR: $plugin/mcp.json must not exist — Cursor would auto-detect it ahead of .mcp.json" >&2
+              exit 1
+            fi
+
+            # The root .mcp.json is read by BOTH IDEs, so it must satisfy both
+            # schemas — not just Cursor's. Claude validates each server against a
+            # union that needs a discriminator ("command" for stdio, or
+            # type=http/sse); a config carrying only "url" is rejected, and a
+            # rejected root .mcp.json takes the plugin's WHOLE MCP config down
+            # with it, including the manifest-declared claude-mcp.json. The
+            # symptom is a plugin that loads with hooks and skills but registers
+            # no MCP server at all (observed on Claude Code 2.1.222 with a
+            # marketplace-installed plugin; --plugin-dir does not reproduce it).
+            for file in claude-mcp.json .mcp.json; do
+              if [ "$(jq -r --arg name "$plugin" '.mcpServers[$name].type // ""' "$plugin/$file")" != "http" ]; then
+                echo "ERROR: $plugin/$file must set \"type\": \"http\" — Claude rejects a server config with no discriminator, and one invalid file disables the plugin's entire MCP config" >&2
+                exit 1
+              fi
+            done
+
+            # Same server key in both files is what makes Claude's override
+            # collapse to a single registered server instead of two.
+            CLAUDE_KEY=$(jq -r '.mcpServers | keys[0]' "$plugin/claude-mcp.json")
+            CURSOR_KEY=$(jq -r '.mcpServers | keys[0]' "$plugin/.mcp.json")
+            if [ "$CLAUDE_KEY" != "$CURSOR_KEY" ]; then
+              echo "ERROR: $plugin server key differs ($CLAUDE_KEY vs $CURSOR_KEY) — Claude would register both files' servers instead of overriding" >&2
+              exit 1
+            fi
+
+            CLAUDE_URL=$(jq -r --arg name "$CLAUDE_KEY" '.mcpServers[$name].url' "$plugin/claude-mcp.json")
+            CURSOR_URL=$(jq -r --arg name "$CURSOR_KEY" '.mcpServers[$name].url' "$plugin/.mcp.json")
             echo "$plugin: claude=$CLAUDE_URL cursor=$CURSOR_URL"
+
+            # Claude's URL must stay interpolated, or self-hosted users lose
+            # their streaming_url override.
+            case "$CLAUDE_URL" in
+              *'${user_config.streaming_url}'*) ;;
+              *) echo "ERROR: $plugin/claude-mcp.json url must interpolate \${user_config.streaming_url}" >&2; exit 1 ;;
+            esac
 
             # The Cursor URL must be concrete: no unresolvable placeholder.
             case "$CURSOR_URL" in
+              https://*'${'*) echo "ERROR: $plugin/.mcp.json url must not contain a placeholder (Cursor does not interpolate plugin variables)" >&2; exit 1 ;;
               https://*) ;;
-              *) echo "ERROR: $CURSOR_DIR/.mcp.json url must be an absolute https URL, not a placeholder (Cursor does not interpolate plugin variables)" >&2; exit 1 ;;
+              *) echo "ERROR: $plugin/.mcp.json url must be an absolute https URL" >&2; exit 1 ;;
             esac
 
             # Both IDEs must target the same endpoint path.
             if [ "${CLAUDE_URL#*\}}" != "${CURSOR_URL#https://*.io}" ]; then
-              echo "ERROR: $plugin MCP endpoint path differs between $plugin/.mcp.json and $CURSOR_DIR/.mcp.json" >&2
+              echo "ERROR: $plugin MCP endpoint path differs between $plugin/claude-mcp.json and $plugin/.mcp.json" >&2
               exit 1
             fi
 
-            # Skills are duplicated, so they must not drift.
-            if ! diff -r "$plugin/skills" "$CURSOR_DIR/skills" > /dev/null; then
-              echo "ERROR: $CURSOR_DIR/skills differs from $plugin/skills — keep the copies byte-identical" >&2
-              diff -r "$plugin/skills" "$CURSOR_DIR/skills" || true
-              exit 1
-            fi
-            echo "$plugin OK: cursor dir clean, url concrete, skills identical"
+            echo "$plugin OK: cursor name suffixed, claude path wired, keys match, urls correct"
           done
 
       - name: Validate hooks manifests

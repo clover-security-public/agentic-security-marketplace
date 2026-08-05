@@ -15,14 +15,16 @@
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours."
     },
     {
-      "name": "clover-for-security-teams-cursor",
-      "source": "./clover-for-security-teams-cursor",
+      "name": "clover-for-security-teams",
+      "displayName": "Clover for Security Teams",
+      "source": "./clover-for-security-teams",
       "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
       "version": "0.1.12"
     },
     {
-      "name": "clover-for-developers-cursor",
-      "source": "./clover-for-developers-cursor",
+      "name": "clover-for-developers",
+      "displayName": "Clover for Developers",
+      "source": "./clover-for-developers",
       "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design review (by its link), and read back the reviews you have access to — answered in natural language.",
       "version": "0.1.2"
     }

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "clover-for-security-teams": {
+      "type": "http",
+      "url": "${user_config.streaming_url}/streaming/security-team/mcp",
+      "timeout": 800000
+    }
+  }
+}

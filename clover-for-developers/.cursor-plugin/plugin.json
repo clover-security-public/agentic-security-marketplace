@@ -1,5 +1,6 @@
 {
-  "name": "clover-for-developers-cursor",
+  "name": "clover-for-developers",
+  "displayName": "Clover for Developers",
   "version": "0.1.2",
   "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design document (a link to it), and read back the reviews you have access to — answered in natural language, right inside your coding agent.",
   "author": {

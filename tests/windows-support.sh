@@ -40,6 +40,8 @@ cp "$ROOT/claude/scripts/setup.sh" "$PLUGIN_ROOT/claude/scripts/"
 cp "$ROOT/claude/scripts/run-hook.sh" "$PLUGIN_ROOT/claude/scripts/"
 cp "$ROOT/cursor/scripts/setup.sh" "$PLUGIN_ROOT/cursor/scripts/"
 cp "$ROOT/cursor/scripts/run-hook.sh" "$PLUGIN_ROOT/cursor/scripts/"
+cp "$ROOT/cursor/scripts/clover-hook.cmd" "$PLUGIN_ROOT/cursor/scripts/"
+chmod +x "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd"
 
 cat > "$PLUGIN_ROOT/bin/clover-hook-windows-amd64.exe" <<'EOF'
 #!/usr/bin/env bash
@@ -70,8 +72,64 @@ if [ "$(jq '[.. | objects | select(.type? == "command") | .shell? // empty] | al
   echo "ERROR: Claude hooks do not force the Git Bash execution path" >&2
   exit 1
 fi
-if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(startswith("bash "))' "$ROOT/cursor/hooks/hooks.json")" != "true" ]; then
-  echo "ERROR: Cursor hooks do not invoke shell scripts through bash" >&2
+# Cursor runs Windows hook commands through PowerShell, so a command that
+# names bash or a .sh spawns a visible Git Bash console there. Every hook must
+# instead dispatch through the clover-hook.cmd polyglot, whose first line hands
+# POSIX straight to the existing shell scripts (unchanged for macOS/Linux).
+if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(contains("/cursor/scripts/clover-hook.cmd\""))' "$ROOT/cursor/hooks/hooks.json")" != "true" ]; then
+  echo "ERROR: Cursor hooks do not all dispatch through clover-hook.cmd" >&2
+  exit 1
+fi
+if [ "$(jq '[.. | objects | .command? // empty] | map(select(test("bash|\\.sh"))) | length' "$ROOT/cursor/hooks/hooks.json")" != "0" ]; then
+  echo "ERROR: a Cursor hook command names bash or a .sh, which spawns Git Bash on Windows" >&2
+  exit 1
+fi
+
+# The polyglot's first line must route POSIX to the existing scripts, and the
+# batch half must reach the per-arch Windows executable, never bash.
+first_line="$(head -1 "$ROOT/cursor/scripts/clover-hook.cmd" | tr -d '\r')"
+case "$first_line" in
+  :*setup.sh*run-hook.sh*\#) ;;
+  *)
+    echo "ERROR: clover-hook.cmd line 1 is not the POSIX dispatch polyglot: $first_line" >&2
+    exit 1
+    ;;
+esac
+if [ "$(sed -n '2p' "$ROOT/cursor/scripts/clover-hook.cmd" | tr -d '\r')" != "@echo off" ]; then
+  echo "ERROR: clover-hook.cmd does not silence echo on line 2" >&2
+  exit 1
+fi
+if ! grep -q 'clover-hook-windows-%ARCH%\.exe' "$ROOT/cursor/scripts/clover-hook.cmd"; then
+  echo "ERROR: clover-hook.cmd does not select a per-arch Windows build" >&2
+  exit 1
+fi
+# Line 1 must keep invoking the scripts through bash: they use pipefail, a
+# bashism a dash /bin/sh rejects, and the old hooks.json always ran them via
+# bash. cmd.exe never executes line 1, so this cannot reach Windows.
+case "$first_line" in
+  *"exec bash"*) ;;
+  *)
+    echo "ERROR: the POSIX branch no longer runs the scripts through bash" >&2
+    exit 1
+    ;;
+esac
+# The batch half (everything after line 1) must never reach for bash.
+if tail -n +2 "$ROOT/cursor/scripts/clover-hook.cmd" | grep -i "bash" | grep -vq "rem"; then
+  echo "ERROR: the Windows batch half of clover-hook.cmd invokes bash" >&2
+  exit 1
+fi
+for sub in cursor-setup cursor-log-prompt cursor-review-plan-stop; do
+  if ! grep -q "$sub" "$ROOT/cursor/scripts/clover-hook.cmd"; then
+    echo "ERROR: clover-hook.cmd does not map to $sub" >&2
+    exit 1
+  fi
+done
+if ! git -C "$ROOT" check-attr eol -- cursor/scripts/clover-hook.cmd | grep -q 'eol: crlf'; then
+  echo "ERROR: clover-hook.cmd is not pinned to CRLF line endings" >&2
+  exit 1
+fi
+if [ ! -x "$ROOT/cursor/scripts/clover-hook.cmd" ]; then
+  echo "ERROR: clover-hook.cmd is not executable (POSIX runs it directly)" >&2
   exit 1
 fi
 
@@ -148,6 +206,39 @@ if [ "$cursor_result" != '{"permission":"allow"}' ]; then
 fi
 if grep -q "missing jq or binary" "$cursor_error"; then
   echo "ERROR: Cursor dispatcher could not locate the Windows executable" >&2
+  exit 1
+fi
+
+# The polyglot's POSIX branch must hand off to the existing scripts unchanged:
+# `setup` routes to setup.sh, anything else to run-hook.sh.
+cmd_setup="$(
+  printf '{}\n' | \
+    PATH="$MOCK_BIN:$PATH" \
+    HOME="$TEST_HOME" \
+    CURSOR_PLUGIN_ROOT="$PLUGIN_ROOT" \
+    TEST_UNAME_S="Darwin" \
+    TEST_UNAME_M="arm64" \
+      "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd" setup
+)"
+case "$cmd_setup" in
+  *"clover-hook-darwin-arm64"*) ;;
+  *)
+    echo "ERROR: clover-hook.cmd setup did not reach setup.sh: $cmd_setup" >&2
+    exit 1
+    ;;
+esac
+
+cmd_prompt="$(
+  printf '{"prompt":"hi"}\n' | \
+    PATH="$MOCK_BIN:$PATH" \
+    HOME="$TEST_HOME" \
+    CURSOR_PLUGIN_ROOT="$PLUGIN_ROOT" \
+    TEST_UNAME_S="Darwin" \
+    TEST_UNAME_M="arm64" \
+      "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd" log-prompt
+)"
+if [ "$cmd_prompt" != '{"continue":true}' ]; then
+  echo "ERROR: clover-hook.cmd log-prompt did not reach run-hook.sh: $cmd_prompt" >&2
   exit 1
 fi
 

@@ -237,7 +237,10 @@ jobs:
 
       - name: Check scripts are executable
         run: |
-          for f in claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh; do
+          # clover-hook.cmd needs the exec bit too, unusually for a .cmd: it is
+          # the Cursor hooks.json entry point on every platform, and POSIX shells
+          # execute it directly before its line-1 dispatch reaches the .sh scripts.
+          for f in claude/scripts/*.sh cursor/scripts/*.sh cursor/scripts/clover-hook.cmd clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh; do
             if [ ! -x "$f" ]; then
               echo "ERROR: $f is not executable"
               exit 1

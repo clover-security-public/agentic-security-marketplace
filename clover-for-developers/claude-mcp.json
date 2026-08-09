@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "clover-for-developers": {
+      "type": "http",
+      "url": "${user_config.streaming_url}/streaming/developer/mcp",
+      "timeout": 800000
+    }
+  }
+}

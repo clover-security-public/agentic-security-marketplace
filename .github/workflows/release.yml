@@ -41,16 +41,17 @@ jobs:
       #                               released under the legacy "v<version>"
       #                               tag with the hook binaries attached.
       #   clover-for-security-teams — the "ask Clover" plugin (formerly
-      #                               clover-appsec), versioned on its own in
-      #                               its own manifest + the marketplace entry,
-      #                               released under
+      #                               clover-appsec), versioned on its own
+      #                               across its Claude + Cursor manifests and
+      #                               both marketplace entries, released under
       #                               "clover-for-security-teams-v<version>"
-      #                               (skills-only, no binaries).
+      #                               (skills + MCP only, no binaries).
       #   clover-for-developers     — the developer-facing "ask Clover" plugin,
-      #                               versioned on its own in its own manifest +
-      #                               the marketplace entry, released under
+      #                               versioned on its own across its Claude +
+      #                               Cursor manifests and both marketplace
+      #                               entries, released under
       #                               "clover-for-developers-v<version>"
-      #                               (skills-only, no binaries).
+      #                               (skills + MCP only, no binaries).
       #
       # For each plugin: if its current-version tag already exists, patch-bump
       # and commit; then tag + cut a release for the resolved version. Matches
@@ -96,11 +97,11 @@ jobs:
           #   tag present + no change -> skip.
 
           # ---- clover (main) -------------------------------------------------
-          # Everything clover ships across Claude + Cursor. The shared
-          # .claude-plugin/marketplace.json is excluded so an edit to another
-          # plugin's entry there can't trigger a clover release; clover's own
-          # entry is kept in lockstep by the bump below.
-          CLOVER_PATHS=(claude cursor bin .claude-plugin/plugin.json .cursor-plugin)
+          # Everything clover ships across Claude + Cursor. Both shared
+          # marketplace manifests are excluded so an edit to another plugin's
+          # entry in either one can't trigger a clover release; clover's own
+          # entries are kept in lockstep by the bump below.
+          CLOVER_PATHS=(claude cursor bin .claude-plugin/plugin.json .cursor-plugin/plugin.json)
           CLOVER_V=$(jq -r '.version' .claude-plugin/plugin.json)
           CLOVER_RELEASE=false
           if ! tag_exists "v$CLOVER_V"; then
@@ -130,9 +131,14 @@ jobs:
             APPSEC_RELEASE=true
           elif changed_since "clover-for-security-teams-v$APPSEC_V" "${APPSEC_PATHS[@]}"; then
             APPSEC_V=$(next_free_patch "clover-for-security-teams-v" "$APPSEC_V")
+            # Keep all four of its version locations — the Claude and Cursor
+            # manifests plus both marketplace entries — in lockstep
+            # (validate.yml enforces this).
             jq --arg v "$APPSEC_V" '.version = $v' clover-for-security-teams/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-for-security-teams/.claude-plugin/plugin.json
+            jq --arg v "$APPSEC_V" '.version = $v' clover-for-security-teams/.cursor-plugin/plugin.json > tmp.json && mv tmp.json clover-for-security-teams/.cursor-plugin/plugin.json
             jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-for-security-teams") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
-            git add clover-for-security-teams/.claude-plugin/plugin.json .claude-plugin/marketplace.json
+            jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-for-security-teams-cursor") | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
+            git add clover-for-security-teams/.claude-plugin/plugin.json clover-for-security-teams/.cursor-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
             git commit -m "chore(clover-for-security-teams): bump version to $APPSEC_V [skip ci]"
             BUMPED=true
             APPSEC_RELEASE=true
@@ -149,9 +155,14 @@ jobs:
             DEV_RELEASE=true
           elif changed_since "clover-for-developers-v$DEV_V" "${DEV_PATHS[@]}"; then
             DEV_V=$(next_free_patch "clover-for-developers-v" "$DEV_V")
+            # Keep all four of its version locations — the Claude and Cursor
+            # manifests plus both marketplace entries — in lockstep
+            # (validate.yml enforces this).
             jq --arg v "$DEV_V" '.version = $v' clover-for-developers/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-for-developers/.claude-plugin/plugin.json
+            jq --arg v "$DEV_V" '.version = $v' clover-for-developers/.cursor-plugin/plugin.json > tmp.json && mv tmp.json clover-for-developers/.cursor-plugin/plugin.json
             jq --arg v "$DEV_V" '(.plugins[] | select(.name == "clover-for-developers") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
-            git add clover-for-developers/.claude-plugin/plugin.json .claude-plugin/marketplace.json
+            jq --arg v "$DEV_V" '(.plugins[] | select(.name == "clover-for-developers-cursor") | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
+            git add clover-for-developers/.claude-plugin/plugin.json clover-for-developers/.cursor-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
             git commit -m "chore(clover-for-developers): bump version to $DEV_V [skip ci]"
             BUMPED=true
             DEV_RELEASE=true

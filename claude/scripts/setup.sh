@@ -1,8 +1,55 @@
 #!/bin/bash
-# Downloads the correct clover-hook binary from GitHub releases on first run.
-# Uses ${CLAUDE_PLUGIN_DATA} for persistent storage across plugin updates.
+# Deploys the clover-hook binary bundled with the plugin tree (release-download
+# fallback on the public channel only). Uses ${CLAUDE_PLUGIN_DATA} for
+# persistent storage across plugin updates.
 
-REPO="clover-security/clover-claude-plugin"
+# Public repo for the release-asset fallback path.
+REPO="clover-security-public/agentic-security-marketplace"
+
+# Channel identity, derived from the plugin version: the release train encodes
+# it (X.Y.Z-beta.N = org ring, -local = developer build, plain X.Y.Z = public).
+# Public is the default — a plain version, a legacy tree, or anything
+# unrecognized behaves exactly as the shipped public plugin always has.
+PLUGIN_NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+FULL_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+[ -n "$PLUGIN_NAME" ] || PLUGIN_NAME="clover"
+case "$FULL_VERSION" in
+  *-beta*)  CHANNEL="beta";   MARKETPLACE_NAME="clover-security-beta" ;;
+  *-local*) CHANNEL="local";  MARKETPLACE_NAME="clover-security-local" ;;
+  *)        CHANNEL="public"; MARKETPLACE_NAME="clover-security" ;;
+esac
+REGISTRY_KEY="${PLUGIN_NAME}@${MARKETPLACE_NAME}"
+
+# Integrity gate: every binary this script deploys must match the SHA-256
+# manifest that ships in the same tree (written last by the assembly script).
+# A missing manifest or a mismatch refuses the deploy — a tampered or
+# half-synced tree must surface loudly, never run.
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+verify_binary() {
+  CANDIDATE="$1"
+  CHECKSUMS_FILE="${CLAUDE_PLUGIN_ROOT}/bin/checksums.sha256"
+  if [ ! -f "$CHECKSUMS_FILE" ]; then
+    echo "clover-plugin setup.sh: bin/checksums.sha256 is missing — refusing to deploy ${ASSET_NAME}" >&2
+    return 1
+  fi
+  EXPECTED=$(awk -v name="$ASSET_NAME" '{ file=$2; sub(/^\*/, "", file); if (file == name) print $1 }' "$CHECKSUMS_FILE" | head -1)
+  if [ -z "$EXPECTED" ]; then
+    echo "clover-plugin setup.sh: ${ASSET_NAME} has no entry in checksums.sha256 — refusing to deploy" >&2
+    return 1
+  fi
+  ACTUAL=$(sha256_of "$CANDIDATE")
+  if [ "$EXPECTED" != "$ACTUAL" ]; then
+    echo "clover-plugin setup.sh: checksum mismatch for ${ASSET_NAME} (expected ${EXPECTED}, got ${ACTUAL}) — refusing to deploy" >&2
+    return 1
+  fi
+  return 0
+}
 
 # Persist plugin options to env.sh so other hook events
 # (UserPromptSubmit, PreToolUse) — which do not receive
@@ -76,7 +123,7 @@ fi
 # install, this whole block can be deleted. The investigation issue should
 # track that evidence.
 if [ -n "${CLAUDE_PLUGIN_ROOT}" ] && command -v python3 >/dev/null 2>&1; then
-  python3 - "$CLAUDE_PLUGIN_ROOT" <<'PYEOF' 2>&1 || true
+  python3 - "$CLAUDE_PLUGIN_ROOT" "$REGISTRY_KEY" "$MARKETPLACE_NAME" <<'PYEOF' 2>&1 || true
 import json
 import os
 import pathlib
@@ -86,6 +133,8 @@ import datetime
 
 try:
     plugin_root = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("CLAUDE_PLUGIN_ROOT", "")
+    registry_key = sys.argv[2] if len(sys.argv) > 2 else "clover@clover-security"
+    marketplace_name = sys.argv[3] if len(sys.argv) > 3 else "clover-security"
     if not plugin_root or not pathlib.Path(plugin_root).is_dir():
         sys.exit(0)
 
@@ -106,7 +155,7 @@ try:
         data = {"version": 2, "plugins": {}}
 
     plugins = data.setdefault("plugins", {})
-    existing = plugins.get("clover@clover-security", [])
+    existing = plugins.get(registry_key, [])
 
     # Happy-path check: do we already have a valid entry whose installPath
     # actually points at an existing directory? If yes, no-op.
@@ -139,7 +188,7 @@ try:
     head_file = (
         pathlib.Path.home()
         / ".claude" / "plugins" / "marketplaces"
-        / "clover-security" / ".git" / "HEAD"
+        / marketplace_name / ".git" / "HEAD"
     )
     if head_file.exists():
         try:
@@ -163,7 +212,7 @@ try:
     }
     if git_commit_sha:
         entry["gitCommitSha"] = git_commit_sha
-    plugins["clover@clover-security"] = [entry]
+    plugins[registry_key] = [entry]
 
     # Atomic write: temp file + rename, so we never leave registry.json
     # half-written if the process is killed mid-write.
@@ -215,8 +264,9 @@ BINARY="$BINARY_DIR/clover-hook${EXE_SUFFIX}"
 VERSION_FILE="$BINARY_DIR/.version"
 ASSET_NAME="clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
 
-# Get current plugin version
-PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
+# Current plugin version, full string — prerelease suffix included, so beta
+# trees pin their exact -beta.N build.
+PLUGIN_VERSION="$FULL_VERSION"
 
 # Skip if binary exists and version matches
 if [ -x "$BINARY" ] && [ -f "$VERSION_FILE" ] && [ "$(cat "$VERSION_FILE")" = "$PLUGIN_VERSION" ]; then
@@ -227,16 +277,29 @@ mkdir -p "$BINARY_DIR"
 
 # Primary path: copy the bundled binary that ships with the plugin clone.
 # This is the only reliable path — it works without gh CLI auth, without
-# a working network, and across all org rollout configurations.
+# a working network, and across all org rollout configurations. It must
+# match the tree's checksum manifest or it does not deploy.
 BUNDLED="${CLAUDE_PLUGIN_ROOT}/bin/${ASSET_NAME}"
 if [ -f "$BUNDLED" ]; then
+  if ! verify_binary "$BUNDLED"; then
+    exit 1
+  fi
   cp "$BUNDLED" "$BINARY"
   chmod +x "$BINARY"
   echo "$PLUGIN_VERSION" > "$VERSION_FILE"
   exit 0
 fi
 
-# Fallback: GitHub Releases (kept for shallow clones or future detached-bin layouts)
+# Release-download fallbacks exist only on the public channel (beta and local
+# trees always bundle their binaries; their repos are private, so a release
+# download could neither authenticate nor be verified against a public source).
+if [ "$CHANNEL" != "public" ]; then
+  echo "clover-plugin setup.sh: bundled binary missing for ${OS}/${ARCH} on channel ${CHANNEL} — refusing remote fallback" >&2
+  exit 1
+fi
+
+# Fallback: GitHub Releases (kept for shallow clones or future detached-bin
+# layouts). Downloads deploy only if they match the tree's checksum manifest.
 if command -v gh >/dev/null 2>&1; then
   gh release download "v${PLUGIN_VERSION}" \
     --repo "$REPO" \
@@ -244,20 +307,26 @@ if command -v gh >/dev/null 2>&1; then
     --dir "$BINARY_DIR" \
     --clobber 2>/dev/null
   if [ -f "$BINARY_DIR/$ASSET_NAME" ]; then
-    mv "$BINARY_DIR/$ASSET_NAME" "$BINARY"
-    chmod +x "$BINARY"
-    echo "$PLUGIN_VERSION" > "$VERSION_FILE"
-    exit 0
+    if verify_binary "$BINARY_DIR/$ASSET_NAME"; then
+      mv "$BINARY_DIR/$ASSET_NAME" "$BINARY"
+      chmod +x "$BINARY"
+      echo "$PLUGIN_VERSION" > "$VERSION_FILE"
+      exit 0
+    fi
+    rm -f "$BINARY_DIR/$ASSET_NAME"
   fi
 fi
 
 URL="https://github.com/$REPO/releases/download/v${PLUGIN_VERSION}/${ASSET_NAME}"
-curl -sL "$URL" -o "$BINARY" 2>/dev/null
-if [ -s "$BINARY" ]; then
+DOWNLOAD="$BINARY_DIR/.download-${ASSET_NAME}"
+curl -sL "$URL" -o "$DOWNLOAD" 2>/dev/null
+if [ -s "$DOWNLOAD" ] && verify_binary "$DOWNLOAD"; then
+  mv "$DOWNLOAD" "$BINARY"
   chmod +x "$BINARY"
   echo "$PLUGIN_VERSION" > "$VERSION_FILE"
   exit 0
 fi
+rm -f "$DOWNLOAD"
 
-echo "clover-plugin setup.sh: failed to install binary for ${OS}/${ARCH} (looked at ${BUNDLED}, gh release, curl)" >&2
+echo "clover-plugin setup.sh: failed to install a verified binary for ${OS}/${ARCH} (looked at ${BUNDLED}, gh release, curl)" >&2
 exit 1

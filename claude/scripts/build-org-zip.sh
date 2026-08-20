@@ -79,6 +79,18 @@ for target in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64 windows-arm64.ex
     echo "  bundled ${target}"
 done
 
+# The integrity manifest ships with the binaries: setup.sh verifies every
+# binary against it before deploying and refuses when it is absent, so a bundle
+# without it would install a dead plugin on exactly the air-gapped machines
+# that cannot fall back to a download.
+if [ ! -f bin/checksums.sha256 ]; then
+    echo "ERROR: bin/checksums.sha256 is missing — the tree must be assembled by" >&2
+    echo "  clover-hook-source/scripts/assemble-plugin-tree.sh before building the bundle." >&2
+    exit 1
+fi
+cp bin/checksums.sha256 "$STAGE/bin/"
+echo "  bundled checksums.sha256"
+
 # Zip it.
 ZIP="dist/clover-plugin-v${VERSION}.zip"
 ( cd dist && zip -r "$(basename "$ZIP")" clover-plugin >/dev/null )

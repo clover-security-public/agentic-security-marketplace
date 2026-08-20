@@ -23,7 +23,7 @@ case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
 esac
 BINARY="${CLAUDE_PLUGIN_DATA}/bin/clover-hook${EXE_SUFFIX}"
 VERSION_FILE="${CLAUDE_PLUGIN_DATA}/bin/.version"
-PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | grep -o '[0-9][0-9.]*')
+PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
 if [ ! -x "$BINARY" ] || [ "$(cat "$VERSION_FILE" 2>/dev/null)" != "$PLUGIN_VERSION" ]; then
     bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"
 fi
@@ -39,7 +39,16 @@ fi
 # registry entry already exists and is valid. See the matching block
 # in setup.sh and its TODO(clover-coding-plugin) for removal criteria.
 REGISTRY="${HOME}/.claude/plugins/installed_plugins.json"
-if [ ! -f "$REGISTRY" ] || ! grep -q '"clover@clover-security"' "$REGISTRY" 2>/dev/null; then
+HOOK_PLUGIN_NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+[ -n "$HOOK_PLUGIN_NAME" ] || HOOK_PLUGIN_NAME="clover"
+# Marketplace name follows the channel, which the version suffix encodes
+# (public is the default for anything unrecognized).
+case "$PLUGIN_VERSION" in
+  *-beta*)  HOOK_MARKETPLACE_NAME="clover-security-beta" ;;
+  *-local*) HOOK_MARKETPLACE_NAME="clover-security-local" ;;
+  *)        HOOK_MARKETPLACE_NAME="clover-security" ;;
+esac
+if [ ! -f "$REGISTRY" ] || ! grep -q "\"${HOOK_PLUGIN_NAME}@${HOOK_MARKETPLACE_NAME}\"" "$REGISTRY" 2>/dev/null; then
     bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh" >/dev/null 2>&1 || true
 fi
 

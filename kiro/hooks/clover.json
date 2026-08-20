@@ -1,0 +1,50 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Clover Security",
+      "description": "Keep Clover up to date; Kiro has no plugin manager to do it.",
+      "trigger": "SessionStart",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/clover/scripts/run-hook.sh kiro-check-update"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "Clover Security",
+      "description": "Record the developer prompt for the security audit trail.",
+      "trigger": "UserPromptSubmit",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/clover/scripts/run-hook.sh kiro-log-prompt"
+      },
+      "timeout": 20,
+      "enabled": true
+    },
+    {
+      "name": "Clover Security",
+      "description": "Review the spec with Clover as it is written.",
+      "trigger": "PostFileSave",
+      "matcher": "\\.kiro/specs/.*\\.md$",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/clover/scripts/run-hook.sh kiro-capture-spec"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "Clover Security",
+      "description": "Review the spec before implementation starts; missing security requirements go back to the agent.",
+      "trigger": "PreTaskExec",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/clover/scripts/run-hook.sh kiro-pre-task"
+      },
+      "timeout": 300,
+      "enabled": true
+    }
+  ]
+}

@@ -34,6 +34,18 @@ jobs:
             fi
           done
 
+      # Integrity gate: the binaries must match the SHA-256 manifest assembled
+      # with them. A tree whose binaries and manifest disagree (tampering, a
+      # half-synced push, a hand-edited bin/) must never become a release that
+      # installs fleet-wide.
+      - name: Verify binary checksums
+        run: |
+          if [ ! -f bin/checksums.sha256 ]; then
+            echo "ERROR: bin/checksums.sha256 is missing — assemble the tree via scripts/assemble-plugin-tree.sh in the source repo" >&2
+            exit 1
+          fi
+          cd bin && sha256sum -c checksums.sha256
+
       # Each plugin is versioned and released independently:
       #
       #   clover                    — the main plugin, kept in lockstep across
@@ -53,10 +65,17 @@ jobs:
       #                               "clover-for-developers-v<version>"
       #                               (skills + MCP only, no binaries).
       #
-      # For each plugin: if its current-version tag already exists, patch-bump
-      # and commit; then tag + cut a release for the resolved version. Matches
-      # the existing bump-on-push behaviour (the bump commit carries [skip ci]
-      # so it does not trigger a second, racing Release run).
+      # Channels: this workflow ships in the tree that clover-hook-source
+      # assembles for BOTH the public marketplace (agentic-security-marketplace)
+      # and the org-only beta mirror (clover-security-marketplace-beta). The
+      # channel is read from marketplace.json's name:
+      #
+      #   public — exactly the historical behaviour: if a plugin's
+      #            current-version tag exists and its content changed,
+      #            patch-bump [skip ci], tag "…v<X.Y.Z>", release.
+      #   beta   — every plugin whose content changed since its latest beta tag
+      #            releases "…v<X.Y.Z>-beta.<N>" as a prerelease; the plain
+      #            X.Y.Z namespace belongs to public and is never tagged here.
       - name: Release each plugin independently
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,6 +86,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           tag_exists() { git tag -l "$1" | grep -qxF "$1"; }
+
+          PUBLIC_MANIFEST_URL="${PUBLIC_MANIFEST_URL:-https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/.claude-plugin/marketplace.json}"
+
+          IS_BETA=false
+          case "$(jq -r '.name' .claude-plugin/marketplace.json)" in
+            *-beta) IS_BETA=true ;;
+          esac
+          echo "Channel: $([ "$IS_BETA" = true ] && echo beta || echo public)"
 
           # Patch-bump, skipping any version whose tag already exists so a stale
           # tag left by an earlier run can't wedge the release.
@@ -80,6 +107,38 @@ jobs:
             echo "${major}.${minor}.${patch}"
           }
 
+          # Release train: a beta is a prerelease of the NEXT public version, so
+          # the base is derived from what the public marketplace ships right now
+          # (public 0.1.96 -> 0.1.97-beta.N here). The number you soak is then
+          # the exact number the promote publishes. Falls back to this repo's
+          # own base when the public manifest can't be read, so a network blip
+          # degrades to independent numbering instead of failing the release.
+          train_base() {
+            local plugin=$1 fallback=${2%%-beta.*} public_version major minor patch
+            public_version=$(curl -fsSL --max-time 10 "$PUBLIC_MANIFEST_URL" 2>/dev/null \
+              | jq -r --arg name "$plugin" '(.plugins[] | select(.name == $name) | .version) // ""' 2>/dev/null || true)
+            if [ -z "$public_version" ] || [ "$public_version" = "null" ]; then
+              echo "$fallback"
+              return 0
+            fi
+            IFS='.' read -r major minor patch <<< "${public_version%%-*}"
+            echo "${major}.${minor}.$((patch + 1))"
+          }
+
+          # Next free X.Y.Z-beta.N for the given base version (any existing
+          # -beta suffix stripped first).
+          next_free_beta() {
+            local prefix=$1 base=${2%%-beta.*} n=0
+            while :; do
+              n=$((n + 1))
+              tag_exists "${prefix}${base}-beta.${n}" || break
+            done
+            echo "${base}-beta.${n}"
+          }
+
+          # Latest beta tag for a prefix, by tag creation order.
+          latest_beta_tag() { git tag -l "${1}*-beta.*" --sort=-creatordate | head -n 1; }
+
           # True when any of the given paths differ between <ref> and HEAD.
           changed_since() {
             local ref=$1
@@ -87,14 +146,38 @@ jobs:
             ! git diff --quiet "$ref" HEAD -- "$@"
           }
 
+          # The version field lives at a different JSON path in each manifest;
+          # keep every location in lockstep (validate.yml enforces this).
+          set_clover_version() {
+            local v=$1
+            jq --arg v "$v" '.version = $v'            .claude-plugin/plugin.json      > tmp.json && mv tmp.json .claude-plugin/plugin.json
+            jq --arg v "$v" '(.plugins[] | select(.name == "clover" or .name == "clover-local") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
+            jq --arg v "$v" '.version = $v'            .cursor-plugin/plugin.json      > tmp.json && mv tmp.json .cursor-plugin/plugin.json
+            jq --arg v "$v" '.metadata.version = $v'   .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
+            git add .claude-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/plugin.json .cursor-plugin/marketplace.json
+          }
+
+          set_subplugin_version() {
+            local dir=$1 claude_name=$2 cursor_name=$3 v=$4
+            jq --arg v "$v" '.version = $v' "$dir/.claude-plugin/plugin.json" > tmp.json && mv tmp.json "$dir/.claude-plugin/plugin.json"
+            jq --arg v "$v" '.version = $v' "$dir/.cursor-plugin/plugin.json" > tmp.json && mv tmp.json "$dir/.cursor-plugin/plugin.json"
+            jq --arg v "$v" --arg n "$claude_name" '(.plugins[] | select(.name == $n) | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
+            jq --arg v "$v" --arg n "$cursor_name" '(.plugins[] | select(.name == $n) | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
+            git add "$dir/.claude-plugin/plugin.json" "$dir/.cursor-plugin/plugin.json" .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
+          }
+
           BUMPED=false
 
           # Release a plugin ONLY when its own content changed since its last
-          # release tag, so a push touching one plugin (or just docs/CI) never
-          # bumps or re-releases another. Per plugin:
-          #   tag missing            -> version bumped manually / first release; cut as-is.
-          #   tag present + changed  -> patch-bump, commit [skip ci], tag + release.
+          # release tag on THIS channel, so a push touching one plugin (or just
+          # docs/CI) never bumps or re-releases another. Per plugin on public:
+          #   tag missing             -> version bumped manually / first release; cut as-is.
+          #   tag present + changed   -> patch-bump, commit [skip ci], tag + release.
           #   tag present + no change -> skip.
+          # Per plugin on beta:
+          #   no beta tag yet         -> cut <base>-beta.1.
+          #   changed since last beta -> cut next free <base>-beta.N.
+          #   unchanged               -> skip.
 
           # ---- clover (main) -------------------------------------------------
           # Everything clover ships across Claude + Cursor. Both shared
@@ -104,17 +187,22 @@ jobs:
           CLOVER_PATHS=(claude cursor bin .claude-plugin/plugin.json .cursor-plugin/plugin.json)
           CLOVER_V=$(jq -r '.version' .claude-plugin/plugin.json)
           CLOVER_RELEASE=false
-          if ! tag_exists "v$CLOVER_V"; then
+          if [ "$IS_BETA" = true ]; then
+            LAST_BETA=$(latest_beta_tag "v")
+            if [ -z "$LAST_BETA" ] || changed_since "$LAST_BETA" "${CLOVER_PATHS[@]}"; then
+              CLOVER_V=$(next_free_beta "v" "$(train_base clover "$CLOVER_V")")
+              set_clover_version "$CLOVER_V"
+              git commit -m "chore(clover): beta release $CLOVER_V [skip ci]"
+              BUMPED=true
+              CLOVER_RELEASE=true
+            else
+              echo "clover: no content changes since $LAST_BETA — skipping."
+            fi
+          elif ! tag_exists "v$CLOVER_V"; then
             CLOVER_RELEASE=true
           elif changed_since "v$CLOVER_V" "${CLOVER_PATHS[@]}"; then
             CLOVER_V=$(next_free_patch "v" "$CLOVER_V")
-            # The version field lives at a different JSON path in each manifest;
-            # keep all four in lockstep (validate.yml enforces this).
-            jq --arg v "$CLOVER_V" '.version = $v'            .claude-plugin/plugin.json      > tmp.json && mv tmp.json .claude-plugin/plugin.json
-            jq --arg v "$CLOVER_V" '.plugins[0].version = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
-            jq --arg v "$CLOVER_V" '.version = $v'            .cursor-plugin/plugin.json      > tmp.json && mv tmp.json .cursor-plugin/plugin.json
-            jq --arg v "$CLOVER_V" '.metadata.version = $v'   .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
-            git add .claude-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/plugin.json .cursor-plugin/marketplace.json
+            set_clover_version "$CLOVER_V"
             git commit -m "chore(clover): bump version to $CLOVER_V [skip ci]"
             BUMPED=true
             CLOVER_RELEASE=true
@@ -127,18 +215,22 @@ jobs:
           APPSEC_PATHS=(clover-for-security-teams)
           APPSEC_V=$(jq -r '.version' clover-for-security-teams/.claude-plugin/plugin.json)
           APPSEC_RELEASE=false
-          if ! tag_exists "clover-for-security-teams-v$APPSEC_V"; then
+          if [ "$IS_BETA" = true ]; then
+            LAST_BETA=$(latest_beta_tag "clover-for-security-teams-v")
+            if [ -z "$LAST_BETA" ] || changed_since "$LAST_BETA" "${APPSEC_PATHS[@]}"; then
+              APPSEC_V=$(next_free_beta "clover-for-security-teams-v" "$(train_base clover-for-security-teams "$APPSEC_V")")
+              set_subplugin_version clover-for-security-teams clover-for-security-teams clover-for-security-teams "$APPSEC_V"
+              git commit -m "chore(clover-for-security-teams): beta release $APPSEC_V [skip ci]"
+              BUMPED=true
+              APPSEC_RELEASE=true
+            else
+              echo "clover-for-security-teams: no content changes since $LAST_BETA — skipping."
+            fi
+          elif ! tag_exists "clover-for-security-teams-v$APPSEC_V"; then
             APPSEC_RELEASE=true
           elif changed_since "clover-for-security-teams-v$APPSEC_V" "${APPSEC_PATHS[@]}"; then
             APPSEC_V=$(next_free_patch "clover-for-security-teams-v" "$APPSEC_V")
-            # Keep all four of its version locations — the Claude and Cursor
-            # manifests plus both marketplace entries — in lockstep
-            # (validate.yml enforces this).
-            jq --arg v "$APPSEC_V" '.version = $v' clover-for-security-teams/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-for-security-teams/.claude-plugin/plugin.json
-            jq --arg v "$APPSEC_V" '.version = $v' clover-for-security-teams/.cursor-plugin/plugin.json > tmp.json && mv tmp.json clover-for-security-teams/.cursor-plugin/plugin.json
-            jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-for-security-teams") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
-            jq --arg v "$APPSEC_V" '(.plugins[] | select(.name == "clover-for-security-teams-cursor") | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
-            git add clover-for-security-teams/.claude-plugin/plugin.json clover-for-security-teams/.cursor-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
+            set_subplugin_version clover-for-security-teams clover-for-security-teams clover-for-security-teams "$APPSEC_V"
             git commit -m "chore(clover-for-security-teams): bump version to $APPSEC_V [skip ci]"
             BUMPED=true
             APPSEC_RELEASE=true
@@ -151,18 +243,22 @@ jobs:
           DEV_PATHS=(clover-for-developers)
           DEV_V=$(jq -r '.version' clover-for-developers/.claude-plugin/plugin.json)
           DEV_RELEASE=false
-          if ! tag_exists "clover-for-developers-v$DEV_V"; then
+          if [ "$IS_BETA" = true ]; then
+            LAST_BETA=$(latest_beta_tag "clover-for-developers-v")
+            if [ -z "$LAST_BETA" ] || changed_since "$LAST_BETA" "${DEV_PATHS[@]}"; then
+              DEV_V=$(next_free_beta "clover-for-developers-v" "$(train_base clover-for-developers "$DEV_V")")
+              set_subplugin_version clover-for-developers clover-for-developers clover-for-developers "$DEV_V"
+              git commit -m "chore(clover-for-developers): beta release $DEV_V [skip ci]"
+              BUMPED=true
+              DEV_RELEASE=true
+            else
+              echo "clover-for-developers: no content changes since $LAST_BETA — skipping."
+            fi
+          elif ! tag_exists "clover-for-developers-v$DEV_V"; then
             DEV_RELEASE=true
           elif changed_since "clover-for-developers-v$DEV_V" "${DEV_PATHS[@]}"; then
             DEV_V=$(next_free_patch "clover-for-developers-v" "$DEV_V")
-            # Keep all four of its version locations — the Claude and Cursor
-            # manifests plus both marketplace entries — in lockstep
-            # (validate.yml enforces this).
-            jq --arg v "$DEV_V" '.version = $v' clover-for-developers/.claude-plugin/plugin.json > tmp.json && mv tmp.json clover-for-developers/.claude-plugin/plugin.json
-            jq --arg v "$DEV_V" '.version = $v' clover-for-developers/.cursor-plugin/plugin.json > tmp.json && mv tmp.json clover-for-developers/.cursor-plugin/plugin.json
-            jq --arg v "$DEV_V" '(.plugins[] | select(.name == "clover-for-developers") | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
-            jq --arg v "$DEV_V" '(.plugins[] | select(.name == "clover-for-developers-cursor") | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
-            git add clover-for-developers/.claude-plugin/plugin.json clover-for-developers/.cursor-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
+            set_subplugin_version clover-for-developers clover-for-developers clover-for-developers "$DEV_V"
             git commit -m "chore(clover-for-developers): bump version to $DEV_V [skip ci]"
             BUMPED=true
             DEV_RELEASE=true
@@ -176,11 +272,20 @@ jobs:
             git push
           fi
 
+          # Beta releases are prereleases and never claim "Latest"; on public,
+          # clover is the flagship whose release is always pinned as the repo's
+          # "Latest" so .../releases/latest (and
+          # .../releases/latest/download/clover-plugin.zip) resolves to the
+          # clover offline bundle no matter when a secondary plugin last
+          # released.
+          CLOVER_FLAGS=(--latest)
+          SECONDARY_FLAGS=(--latest=false)
+          if [ "$IS_BETA" = true ]; then
+            CLOVER_FLAGS=(--prerelease --latest=false)
+            SECONDARY_FLAGS=(--prerelease --latest=false)
+          fi
+
           # ---- tag + release only the plugins that changed -------------------
-          # clover is the flagship, so its release is always pinned as the repo's
-          # "Latest". That keeps .../releases/latest (and
-          # .../releases/latest/download/clover-plugin.zip) resolving to the clover
-          # offline bundle no matter when a secondary plugin last released.
           if [ "$CLOVER_RELEASE" = true ] && ! tag_exists "$CLOVER_TAG"; then
             # Build the self-contained offline (air-gapped) bundle first, so a
             # build failure aborts before we create + push the tag.
@@ -189,19 +294,18 @@ jobs:
             cp dist/clover-plugin-v*.zip dist/clover-plugin.zip
             git tag "$CLOVER_TAG"
             git push origin "$CLOVER_TAG"
-            gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" --latest --generate-notes \
+            gh release create "$CLOVER_TAG" --title "$CLOVER_TAG" "${CLOVER_FLAGS[@]}" --generate-notes \
               bin/clover-hook-* dist/clover-plugin-v*.zip dist/clover-plugin.zip
           fi
 
-          # Secondary plugin: never steal the "Latest" flag from clover.
           if [ "$APPSEC_RELEASE" = true ] && ! tag_exists "$APPSEC_TAG"; then
             git tag "$APPSEC_TAG"
             git push origin "$APPSEC_TAG"
-            gh release create "$APPSEC_TAG" --title "$APPSEC_TAG" --latest=false --generate-notes
+            gh release create "$APPSEC_TAG" --title "$APPSEC_TAG" "${SECONDARY_FLAGS[@]}" --generate-notes
           fi
 
           if [ "$DEV_RELEASE" = true ] && ! tag_exists "$DEV_TAG"; then
             git tag "$DEV_TAG"
             git push origin "$DEV_TAG"
-            gh release create "$DEV_TAG" --title "$DEV_TAG" --latest=false --generate-notes
+            gh release create "$DEV_TAG" --title "$DEV_TAG" "${SECONDARY_FLAGS[@]}" --generate-notes
           fi

@@ -112,31 +112,48 @@ fi
 # probe must actually OPEN /dev/tty: in headless shells the node exists and
 # passes -r/-w, but opening it fails with "Device not configured" — and an
 # unguarded redirect there would kill the whole install under `set -e`.
+# The Clover hosts. These are the values the shipping Claude Code plugin
+# authenticates against; earlier Kiro installs wrote clover.frontegg.com (not a
+# registered Frontegg vendor host, so auth 404'd) and app.cloversec.io (the
+# webapp, which redirects) — every hook then failed auth and fail-opened, so
+# nothing reached Clover. Overridable for a non-production tenant.
+AUTH_URL="${CLOVER_AUTH_URL:-https://auth.cloversec.io}"
+SERVER_URL="${CLOVER_SERVER_URL:-https://api.cloversec.io}"
+
 ENV_FILE="$DEST/clover/env.sh"
 if [ ! -f "$ENV_FILE" ]; then
   CLIENT_ID=""
   CLIENT_SECRET=""
   if [ -z "${CLOVER_NO_PROMPT:-}" ] && { exec 3<>/dev/tty; } 2>/dev/null; then
     {
-      printf 'Clover credentials (from the Clover admin page - leave empty to fill in later)\n' >&3
+      printf 'Clover setup (from the Clover admin page - leave empty to fill in later)\n' >&3
       printf 'Client ID: ' >&3
       IFS= read -r CLIENT_ID <&3 || CLIENT_ID=""
       printf 'Client secret: ' >&3
       IFS= read -rs CLIENT_SECRET <&3 || CLIENT_SECRET=""
       printf '\n' >&3
+      # Asked, not assumed: a self-hosted or non-production tenant has its own
+      # hosts, and a wrong one here fails auth silently at every hook.
+      printf 'Clover API URL [%s]: ' "$SERVER_URL" >&3
+      IFS= read -r ANSWER <&3 || ANSWER=""
+      [ -n "$ANSWER" ] && SERVER_URL="$ANSWER"
+      printf 'Auth URL [%s]: ' "$AUTH_URL" >&3
+      IFS= read -r ANSWER <&3 || ANSWER=""
+      [ -n "$ANSWER" ] && AUTH_URL="$ANSWER"
     } 2>/dev/null || true
     exec 3>&- 2>/dev/null || true
   fi
   cat > "$ENV_FILE" <<EOF
 export CAS_CLOVER_PLUGIN_CLIENT_ID=${CLIENT_ID:-FILL_ME}
 export CAS_CLOVER_PLUGIN_CLIENT_SECRET=${CLIENT_SECRET:-FILL_ME}
-export CAS_CLOVER_PLUGIN_AUTH_URL=https://clover.frontegg.com
-export CAS_CLOVER_PLUGIN_SERVER_URL=https://app.cloversec.io
+export CAS_CLOVER_PLUGIN_AUTH_URL=${AUTH_URL}
+export CAS_CLOVER_PLUGIN_SERVER_URL=${SERVER_URL}
 EOF
   chmod 600 "$ENV_FILE"
 fi
 
 printf 'clover: installed to %s\n' "$DEST"
+printf 'clover: api=%s auth=%s\n' "$SERVER_URL" "$AUTH_URL"
 if grep -q 'FILL_ME' "$ENV_FILE"; then
   printf 'clover: add your credentials to %s\n' "$ENV_FILE"
 fi

@@ -66,11 +66,21 @@ instead of downloading. `CLOVER_MARKETPLACE_URL` overrides the download base
 Credentials can also be pre-provisioned by dropping `env.sh` in place (MDM,
 dotfiles) — the installer never overwrites an existing one.
 
+The installer asks for four values and writes them to `env.sh`: client id,
+client secret, and the two Clover hosts — **API `https://api.cloversec.io`** and
+**auth `https://auth.cloversec.io`** — offered as defaults, so press enter unless
+this is a non-production tenant. `CLOVER_SERVER_URL` / `CLOVER_AUTH_URL` preset
+them for an unattended install, and the pair is echoed on the last line of the
+install output. Wrong hosts are the one failure that looks like success: auth
+fails, every hook fails open, and nothing reaches Clover.
+
 Then open a repo in Kiro and **trust the workspace** (see below). Confirm with
 the Output panel → Kiro agent channel:
 `[KiroAgent] v2 hooks loaded 3 standalone hooks from .kiro/hooks/`.
 
 ## Workspace trust — required, or hooks stay silent
+
+The tell in Kiro's own log is `hooks.v2.executionDisabledUntrustedWorkspace`.
 
 Kiro turns **every** hook into a no-op in an untrusted folder, logging the
 suppression only at debug level — valid files, no card, no error, nothing in
@@ -181,3 +191,12 @@ read is never replaced.
 `CLOVER_DEBUG=1` in `env.sh` for diagnostics, `CLOVER_KIRO_OBSERVE=1` to
 downgrade the `PreTaskExec` gate to observe-only during a staged rollout, and
 `CLOVER_HOOK_BIN` to point at a locally built binary.
+
+The hook log is `<install dir>/.clover-hook.log`. Two auth failures come from a
+wrong host in `env.sh` — both make every hook fail open, so the symptom is
+silence in Clover rather than an error in Kiro:
+
+| In the log | Cause | Fix |
+|---|---|---|
+| `auth returned 404 ... Failed to find vendor for host` | auth URL is not a Frontegg vendor host (e.g. `clover.frontegg.com`) | `CAS_CLOVER_PLUGIN_AUTH_URL=https://auth.cloversec.io` |
+| auth or post failures, or no rows in Clover | API URL points at the webapp (`app.cloversec.io`), which redirects | `CAS_CLOVER_PLUGIN_SERVER_URL=https://api.cloversec.io` |

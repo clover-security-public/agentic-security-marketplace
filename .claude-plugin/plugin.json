@@ -1,6 +1,6 @@
 {
   "name": "clover",
-  "version": "0.1.97",
+  "version": "0.1.98",
   "hooks": "./claude/hooks/hooks.json",
   "description": "Protect your coding agent experience — Clover silently threat-models every plan, surfaces missing security requirements, and folds them in before code is written.",
   "author": {
@@ -9,13 +9,13 @@
   "userConfig": {
     "server_url": {
       "title": "Clover API URL",
-      "description": "Clover API server URL (e.g. https://app.cloversec.io)",
+      "description": "Clover API server URL (e.g. https://api.cloversec.io)",
       "type": "string",
       "sensitive": false
     },
     "auth_url": {
       "title": "Auth URL",
-      "description": "Frontegg auth URL (e.g. https://clover.frontegg.com)",
+      "description": "Frontegg auth URL (e.g. https://auth.cloversec.io)",
       "type": "string",
       "sensitive": false
     },

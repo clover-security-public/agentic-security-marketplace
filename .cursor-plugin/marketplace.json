@@ -19,7 +19,7 @@
       "displayName": "Clover for Security Teams",
       "source": "./clover-for-security-teams",
       "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
-      "version": "0.1.12"
+      "version": "0.1.14"
     },
     {
       "name": "clover-for-developers",

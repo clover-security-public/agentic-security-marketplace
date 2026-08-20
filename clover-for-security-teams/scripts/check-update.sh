@@ -9,6 +9,15 @@ PLUGIN_NAME="clover-for-security-teams"
 MANIFEST_URL="https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/.claude-plugin/marketplace.json"
 CHECK_INTERVAL_SECS=$((24 * 60 * 60))
 
+# Channel gate — the version suffix encodes the channel (X.Y.Z-beta.N = org
+# ring, -local = developer build). Only the public channel self-updates;
+# beta/local installs rely on Claude Code's marketplace autoUpdate. A plain or
+# unreadable version is public, the default behavior.
+FULL_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+case "$FULL_VERSION" in
+  *-beta*|*-local*) exit 0 ;;
+esac
+
 # Throttle to one remote check per day. The stamp lives in the plugin data
 # dir so it survives plugin updates; fall back to the standard data path
 # when CLAUDE_PLUGIN_DATA is not injected.

@@ -25,14 +25,14 @@
     },
     {
       "name": "Clover Security",
-      "description": "Review the spec with Clover as it is written.",
+      "description": "Review the finished spec with Clover and hand its security requirements back to Kiro.",
       "trigger": "PostFileSave",
       "matcher": "\\.kiro/specs/.*\\.md$",
       "action": {
         "type": "command",
         "command": "bash .kiro/clover/scripts/run-hook.sh kiro-capture-spec"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {

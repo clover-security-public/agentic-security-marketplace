@@ -8,7 +8,8 @@ in `cmd/clover-hook/agent_kiro.go`, not in these scripts.
 ## Why Kiro fits
 
 Kiro writes its plan to disk as a **spec** —
-`.kiro/specs/<feature>/{requirements,bugfix,design,tasks}.md` — and runs tasks
+`.kiro/specs/<feature>/{requirements,bugfix,design,tasks}.md`, or the whole spec
+in a single `spec.md` in its newer single-file flow — and runs tasks
 from it, firing a **blocking `PreTaskExec`** immediately before implementation.
 That gives Clover a real plan artifact plus the closest analogue to Claude's
 `ExitPlanMode` gate on any non-Claude agent.
@@ -18,6 +19,48 @@ That gives Clover a real plan artifact plus the closest analogue to Claude's
 | `UserPromptSubmit` | `kiro-log-prompt` | no |
 | `PostFileSave` on `.kiro/specs/**/*.md` | `kiro-capture-spec` | no |
 | `PreTaskExec` | `kiro-pre-task` | **yes** |
+
+## The review loop
+
+`PostFileSave` drives the loop and `PreTaskExec` enforces it:
+
+1. Kiro finishes writing a spec. Capture reviews it and writes the security
+   requirements Clover returns to `.kiro/steering/clover-requirements-<spec>.md`
+   (`inclusion: always`), which Kiro includes in every subsequent interaction —
+   alongside the `.clover-requirements.md` sidecar beside the spec. The
+   developer's next prompt reprints them too, on `UserPromptSubmit`.
+2. The agent folds them into the spec and saves. That save is a genuine revision,
+   so capture sends it for judgement; Clover approves only when the requirements
+   are actually covered — a cosmetic "we take security seriously" edit comes back
+   denied with the musts still standing.
+3. Starting a task re-reviews the spec and **blocks** while any must stands.
+
+Capture reviews a spec only when it is **finished and settled**, and only one
+review at a time per spec:
+
+- **Finished** — the file Kiro writes last is present (`tasks.md`, or `spec.md`
+  in the single-file spec flow).
+- **Settled** — the spec content is unchanged across a short window
+  (`CLOVER_KIRO_SPEC_SETTLE_SECONDS`, default 4), so the events for the earlier
+  files of one generation drop out instead of each consuming a review round.
+- **One at a time** — a lock file per spec directory, since two saves can settle
+  together.
+
+Those three guards are the fix for the surface's worst bug: capture used to
+review on *every* save, so it reviewed half-written specs, and the next save of
+the same generation arrived as a `JudgePlan` round — which tells the backend the
+developer revised the plan to address the requirements. The approval that came
+back deleted the requirements sidecar and recorded an approved-plan hash, which
+then short-circuits the gate. Requirements found, silently discarded, gate off.
+
+**Delivery channels are not interchangeable.** Kiro's own contract: `exit 0`
+stdout is forwarded only for `SessionStart`, `UserPromptSubmit` and
+`PreToolUse`; `exit 2` stderr is forwarded for `PreToolUse`,
+`UserPromptSubmit` and `PreTaskExec`; anything else is a silent failure. A
+`PostFileSave` hook therefore **cannot speak to the agent at all** — its stdout
+is dropped on the floor. That is why a spec review delivers through steering and
+the prompt channel, and why the gate's own verdict rides `exit 2` on
+`PreTaskExec`.
 
 Kiro's decision contract is the exit code, not JSON: exit 0 proceeds (stdout is
 appended to the model's context), a non-zero exit blocks and hands **stderr** to

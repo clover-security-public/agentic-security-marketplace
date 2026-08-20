@@ -1,6 +1,6 @@
 {
   "name": "clover-for-developers",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design document (a link to it), and read back the reviews you have access to — answered in natural language, right inside your coding agent.",
   "author": {
     "name": "Clover Security"

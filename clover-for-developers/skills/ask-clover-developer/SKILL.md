@@ -27,13 +27,13 @@ they can see — ground it in Clover rather than answering from your own reasoni
 When the developer decides to **act on findings — implement a fix, add a control, mitigate a
 threat** — do not design the security fix from your own reasoning. The AppSec expertise is
 Clover's. Call `developer_clover_agent` again (same `chat_id`) and ask for remediation guidance on
-the specific finding *before* you are changing the design or trying to write a code, then implement grounded in what Clover returns.
-Clover's findings already carry remediation detail (a threat's countermeasures and mitigation
-reasoning, a requirement's implementation example and test case) — use it, and ask Clover to go
-deeper when the finding needs it. A one-shot "what are the findings?" is not enough context to
-implement securely; re-consult Clover as you build.
+the specific finding *before* changing the design or writing code, then implement grounded in what
+Clover returns. Clover's findings already carry remediation detail (a threat's countermeasures and
+mitigation reasoning, a requirement's implementation example and test case) — use it, and ask
+Clover to go deeper when the finding needs it. A one-shot "what are the findings?" is not enough
+context to implement securely; re-consult Clover as you build.
 
-A finding is not always a code fix. **The review was created from a design document, default
+A finding is not always a code fix. **When the review was created from a design document, default
 to fixing it in the design document** — that is the right remediation, not a code change. Ask the
 developer to make the change in the reviewed design document (offer to help them revise it); reach
 for a code change only when that is genuinely the better fix.
@@ -74,10 +74,10 @@ produced no turn to relay.
 
 ## The conversation loop
 
-Clover answers in natural language. It may ask a **follow-up question** for missing context, and
-**before mutating anything** (e.g. creating a review) it asks a **yes/no confirmation**. In both
-cases, surface Clover's question to the developer as Clover's own, then call again with the same
-`chat_id` carrying the developer's answer back unchanged.
+Clover answers in natural language. It may ask a **follow-up question** for missing context —
+surface it to the developer as Clover's own question, then call again with the same `chat_id`
+carrying their answer back unchanged. Before mutating anything (e.g. creating a review or recording
+a response), Clover asks for **approval** (see Approvals below).
 
 ## The `chat_id` continuity contract (most important)
 
@@ -87,21 +87,62 @@ conversation.
 1. **First call:** omit `chat_id` (or pass `null`).
 2. Clover returns a `chat_id` — capture it.
 3. **Every later call in the same conversation** passes that exact `chat_id` back — including
-   follow-ups and confirmation answers.
+   follow-ups, approval decisions, and answers to permission questions.
 4. Drop back to `null` only for a genuinely new, unrelated conversation.
+
+## Approvals — Clover never writes without one
+
+Before Clover changes anything, it stops and asks. Which approval flow you see depends on your
+client; **key off what the response contains, not on which client you think you are**:
+
+### Gated flow — `status` is `approval_required`
+
+Nothing has been written yet. The response carries Clover's `response` so far and a
+`pending_actions` list, one entry per change it wants to make.
+
+- **Relay Clover's `response` and every `pending_actions` entry verbatim** in your own reply, so
+  the developer can see what is about to happen.
+- **Do NOT ask them for permission in your own words.** Calling `approve_clover_actions` is itself
+  the moment your client prompts them: the call is gated, so they answer that prompt. Pre-asking
+  only makes them answer twice.
+- Call `approve_clover_actions` with the same `chat_id` and **one decision per pending action**,
+  each `call_id` and `action` copied exactly as given — the `action` text is what the approval
+  prompt shows the developer as the thing being decided. Mark `approved` true for the actions
+  their request calls for (and false for any they have already told you to leave out). Never treat
+  your own judgement as their answer.
+- **If the prompt is refused, or they want the change made differently, do not retry the approve
+  call.** Send what they said as a new `developer_clover_agent` message on the same `chat_id` —
+  the pending actions are dropped and Clover continues from their words, proposing a corrected
+  change if that is what they asked for.
+- Otherwise the approve call returns Clover's continued turn: `completed` with its reply, or
+  `approval_required` again for a further change. Repeat the same loop.
+
+### In-chat flow — Clover asks permission in prose
+
+When your client has no gated approval prompt (the tool list carries no `approve_clover_actions`),
+Clover asks for permission **in its own words, as part of its reply**. That question is the
+approval: put it to the developer as Clover's own, wait for their actual answer, and send it back
+unchanged on the same `chat_id`. Never answer on their behalf — your judgement is not their
+approval, and Clover acts on whatever comes back.
+
+In either flow, **a refusal is a normal outcome, not an error** — Clover's reply says what it did
+not do. Relay it as it stands.
 
 ## Response shape
 
 ```jsonc
 {
-  "status":      "...",   // outcome of the turn
-  "chat_id":     "...",   // pass back on every later call in this conversation
-  "response":    "...",   // on success — the natural-language answer / question
-  "fail_reason": "..."    // on failure — explain it to the developer
+  "status":          "...",   // "completed", "approval_required", or "failed"
+  "chat_id":         "...",   // pass back on every later call in this conversation
+  "response":        "...",   // the answer / question — on approval_required, Clover's turn so far
+  "pending_actions": [        // only with approval_required — see Approvals above
+    { "action": "...", "call_id": "..." }
+  ],
+  "fail_reason":     "..."    // only with failed — explain it to the developer
 }
 ```
 
-On failure, read `fail_reason` and tell the developer rather than silently retrying. An
+On `failed`, read `fail_reason` and tell the developer rather than silently retrying. An
 auth/identity error usually means the OAuth login didn't complete — have the developer re-run
 `/mcp`.
 

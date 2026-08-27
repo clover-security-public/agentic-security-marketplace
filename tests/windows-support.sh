@@ -22,6 +22,8 @@ mkdir -p \
   "$PLUGIN_ROOT/bin" \
   "$PLUGIN_ROOT/claude/scripts" \
   "$PLUGIN_ROOT/cursor/scripts" \
+  "$PLUGIN_ROOT/devin/scripts" \
+  "$PLUGIN_ROOT/.devin-plugin" \
   "$TEST_HOME"
 
 cat > "$MOCK_BIN/uname" <<'EOF'
@@ -42,6 +44,11 @@ cp "$ROOT/cursor/scripts/setup.sh" "$PLUGIN_ROOT/cursor/scripts/"
 cp "$ROOT/cursor/scripts/run-hook.sh" "$PLUGIN_ROOT/cursor/scripts/"
 cp "$ROOT/cursor/scripts/clover-hook.cmd" "$PLUGIN_ROOT/cursor/scripts/"
 chmod +x "$PLUGIN_ROOT/cursor/scripts/clover-hook.cmd"
+cp "$ROOT/devin/scripts/setup.sh" "$PLUGIN_ROOT/devin/scripts/"
+cp "$ROOT/devin/scripts/run-hook.sh" "$PLUGIN_ROOT/devin/scripts/"
+cp "$ROOT/devin/scripts/clover-hook.cmd" "$PLUGIN_ROOT/devin/scripts/"
+cp "$ROOT/.devin-plugin/plugin.json" "$PLUGIN_ROOT/.devin-plugin/"
+chmod +x "$PLUGIN_ROOT/devin/scripts/clover-hook.cmd"
 
 cat > "$PLUGIN_ROOT/bin/clover-hook-windows-amd64.exe" <<'EOF'
 #!/usr/bin/env bash
@@ -56,6 +63,18 @@ cat > "$PLUGIN_ROOT/bin/clover-hook-darwin-arm64" <<'EOF'
 printf 'fake-hook:%s\n' "$*"
 EOF
 chmod +x "$PLUGIN_ROOT"/bin/*
+
+# claude/scripts/setup.sh refuses to deploy a binary that is not in the tree's
+# SHA-256 manifest, which assemble-plugin-tree.sh writes last. The fixture has
+# to produce the same file or the deploy is refused before any assertion runs.
+(
+  cd "$PLUGIN_ROOT/bin"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum clover-hook-* > checksums.sha256
+  else
+    shasum -a 256 clover-hook-* > checksums.sha256
+  fi
+)
 
 for target in clover-hook-windows-amd64.exe clover-hook-windows-arm64.exe; do
   if ! grep -q "$target" "$ROOT/.github/workflows/release.yml"; then
@@ -87,6 +106,51 @@ fi
 
 # The polyglot's first line must route POSIX to the existing scripts, and the
 # batch half must reach the per-arch Windows executable, never bash.
+if [ "$(jq '[.. | objects | .command? // empty] | map(select(length > 0)) | all(contains("/scripts/clover-hook.cmd\""))' "$ROOT/hooks.json")" != "true" ]; then
+  echo "ERROR: Devin hooks do not all dispatch through clover-hook.cmd" >&2
+  exit 1
+fi
+if [ "$(jq '[.. | objects | .command? // empty] | map(select(test("bash|\\.sh"))) | length' "$ROOT/hooks.json")" != "0" ]; then
+  echo "ERROR: a Devin hook command names bash or a .sh, which spawns Git Bash on Windows" >&2
+  exit 1
+fi
+# apply_patch writes files too; leaving it out of the matcher is a hole the
+# gate cannot see, because the hook simply never fires for those writes.
+if [ "$(jq -r '.PreToolUse[0].matcher' "$ROOT/hooks.json")" != "write|edit|apply_patch" ]; then
+  echo "ERROR: Devin plan gate does not cover write|edit|apply_patch" >&2
+  exit 1
+fi
+if ! git -C "$ROOT" check-attr eol -- devin/scripts/clover-hook.cmd | grep -q 'eol: crlf'; then
+  echo "ERROR: devin clover-hook.cmd is not pinned to CRLF line endings" >&2
+  exit 1
+fi
+if [ ! -x "$ROOT/devin/scripts/clover-hook.cmd" ]; then
+  echo "ERROR: devin clover-hook.cmd is not executable (POSIX runs it directly)" >&2
+  exit 1
+fi
+for sub in devin-setup devin-log-prompt devin-review-write; do
+  if ! grep -q "$sub" "$ROOT/devin/scripts/clover-hook.cmd"; then
+    echo "ERROR: devin clover-hook.cmd does not map to $sub" >&2
+    exit 1
+  fi
+done
+if ! grep -q 'clover-hook-windows-%ARCH%\.exe' "$ROOT/devin/scripts/clover-hook.cmd"; then
+  echo "ERROR: devin clover-hook.cmd does not select a per-arch Windows build" >&2
+  exit 1
+fi
+devin_first_line="$(head -1 "$ROOT/devin/scripts/clover-hook.cmd" | tr -d '\r')"
+case "$devin_first_line" in
+  :*setup.sh*run-hook.sh*\#) ;;
+  *)
+    echo "ERROR: devin clover-hook.cmd line 1 is not the POSIX dispatch polyglot" >&2
+    exit 1
+    ;;
+esac
+if tail -n +2 "$ROOT/devin/scripts/clover-hook.cmd" | grep -i "bash" | grep -vq "rem"; then
+  echo "ERROR: the Windows batch half of devin clover-hook.cmd invokes bash" >&2
+  exit 1
+fi
+
 first_line="$(head -1 "$ROOT/cursor/scripts/clover-hook.cmd" | tr -d '\r')"
 case "$first_line" in
   :*setup.sh*run-hook.sh*\#) ;;
@@ -241,5 +305,22 @@ if [ "$cmd_prompt" != '{"continue":true}' ]; then
   echo "ERROR: clover-hook.cmd log-prompt did not reach run-hook.sh: $cmd_prompt" >&2
   exit 1
 fi
+
+devin_cmd_prompt="$(
+  printf '{"prompt":"hi","session_id":"s"}\n' | \
+    PATH="$MOCK_BIN:$PATH" \
+    HOME="$TEST_HOME" \
+    DEVIN_PLUGIN_ROOT="$PLUGIN_ROOT" \
+    CLOVER_HOOK_BIN="$MOCK_BIN/fake-clover-hook" \
+    TEST_UNAME_S="Darwin" \
+    TEST_UNAME_M="arm64" \
+      "$PLUGIN_ROOT/devin/scripts/clover-hook.cmd" log-prompt 2>&1
+)"
+case "$devin_cmd_prompt" in
+  *"not found"*)
+    echo "ERROR: devin clover-hook.cmd did not reach run-hook.sh: $devin_cmd_prompt" >&2
+    exit 1
+    ;;
+esac
 
 echo "Windows marketplace support checks passed."

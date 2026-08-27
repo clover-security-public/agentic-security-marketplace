@@ -1,6 +1,7 @@
 {
   "name": "clover",
-  "version": "0.1.99",
+  "displayName": "Clover Security - Kura",
+  "version": "0.1.100",
   "hooks": "./claude/hooks/hooks.json",
   "description": "Protect your coding agent experience — Clover silently threat-models every plan, surfaces missing security requirements, and folds them in before code is written.",
   "author": {

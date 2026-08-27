@@ -42,6 +42,16 @@ native Windows setup already requires Git for Windows; Cursor users should
 install [Git for Windows](https://git-scm.com/download/win) and make sure
 `bash.exe` is available on `PATH`.
 
+## What Clover installs
+
+Every hook Clover registers is documented before you install it. After
+installing, `claude plugin details clover` prints the resolved component
+inventory and its context cost.
+
+[**🔎 What Clover runs, and what leaves your machine →**](USAGE.md)
+
+---
+
 👉 **For detailed, screenshot-by-screenshot instructions, org-wide rollout, and troubleshooting, see the [Connecting Clover to Coding Agents guide](https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents).**
 
 ---

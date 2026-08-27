@@ -241,5 +241,5 @@ silence in Clover rather than an error in Kiro:
 
 | In the log | Cause | Fix |
 |---|---|---|
-| `auth returned 404 ... Failed to find vendor for host` | auth URL is not a Frontegg vendor host (e.g. `clover.frontegg.com`) | `CAS_CLOVER_PLUGIN_AUTH_URL=https://auth.cloversec.io` |
-| auth or post failures, or no rows in Clover | API URL points at the webapp (`app.cloversec.io`), which redirects | `CAS_CLOVER_PLUGIN_SERVER_URL=https://api.cloversec.io` |
+| `auth returned 404 ... Failed to find vendor for host` | auth URL is not a Frontegg vendor host (e.g. `clover.frontegg.com`) | `CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL=https://auth.cloversec.io` |
+| auth or post failures, or no rows in Clover | API URL points at the webapp (`app.cloversec.io`), which redirects | `CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL=https://api.cloversec.io` |

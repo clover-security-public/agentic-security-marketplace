@@ -248,8 +248,14 @@ jobs:
             echo "OK: $f"
           done
 
+      - name: Check marketplace entry metadata
+        run: bash tests/marketplace-metadata.sh
+
       - name: Test Windows runtime support
         run: bash tests/windows-support.sh
+
+      - name: Test Cursor binary auto-update
+        run: bash tests/cursor-auto-update.sh
 
       - name: Shellcheck
         run: |

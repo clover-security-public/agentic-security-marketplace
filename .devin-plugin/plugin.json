@@ -1,0 +1,12 @@
+{
+  "name": "clover",
+  "displayName": "Clover",
+  "version": "0.1.66",
+  "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
+  "author": {
+    "name": "Clover Security",
+    "email": "roy@clover.security"
+  },
+  "homepage": "https://github.com/clover-security-public/agentic-security-marketplace",
+  "repository": "https://github.com/clover-security-public/agentic-security-marketplace"
+}

@@ -8,24 +8,138 @@
   "plugins": [
     {
       "name": "clover",
+      "displayName": "Clover Security - Kura",
       "source": {
         "source": "url",
         "url": "https://github.com/clover-security-public/agentic-security-marketplace.git"
       },
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
-      "version": "0.1.99"
+      "category": "security",
+      "version": "0.1.100",
+      "homepage": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh\"",
+                "shell": "bash"
+              },
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" check-update",
+                "shell": "bash",
+                "async": true,
+                "timeout": 30
+              }
+            ]
+          }
+        ],
+        "PreToolUse": [
+          {
+            "matcher": "ExitPlanMode",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" review-plan",
+                "shell": "bash",
+                "timeout": 300
+              }
+            ]
+          },
+          {
+            "matcher": "Edit|Write|MultiEdit",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" should-review-plan",
+                "shell": "bash",
+                "timeout": 300
+              }
+            ]
+          }
+        ],
+        "UserPromptSubmit": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" log-prompt",
+                "shell": "bash",
+                "async": true,
+                "timeout": 20
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "name": "clover-for-security-teams",
+      "displayName": "Clover Security MCP - Security Teams",
       "source": "./clover-for-security-teams",
       "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
-      "version": "0.1.14"
+      "category": "security",
+      "version": "0.1.15",
+      "homepage": "https://github.com/clover-security-public/agentic-security-marketplace#readme",
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-update.sh",
+                "async": true,
+                "timeout": 30
+              }
+            ]
+          }
+        ]
+      },
+      "skills": [
+        "./skills/ask-clover"
+      ],
+      "mcpServers": {
+        "clover-for-security-teams": {
+          "type": "http",
+          "url": "${user_config.streaming_url}/streaming/security-team/mcp",
+          "timeout": 800000
+        }
+      }
     },
     {
       "name": "clover-for-developers",
+      "displayName": "Clover Security MCP - Developers",
       "source": "./clover-for-developers",
       "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design review (by its link), and read back the reviews you have access to — answered in natural language.",
-      "version": "0.1.4"
+      "category": "security",
+      "version": "0.1.5",
+      "homepage": "https://github.com/clover-security-public/agentic-security-marketplace#readme",
+      "hooks": {
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-update.sh",
+                "async": true,
+                "timeout": 30
+              }
+            ]
+          }
+        ]
+      },
+      "skills": [
+        "./skills/ask-clover-developer"
+      ],
+      "mcpServers": {
+        "clover-for-developers": {
+          "type": "http",
+          "url": "${user_config.streaming_url}/streaming/developer/mcp",
+          "timeout": 800000
+        }
+      }
     }
   ]
 }

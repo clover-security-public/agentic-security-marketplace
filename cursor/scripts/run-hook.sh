@@ -44,7 +44,9 @@ safe_default()  { case "$SUB" in log-prompt) continue_ok ;; review-plan-stop) : 
 # Locate the binary. sessionStart injects CLOVER_HOOK_BIN; otherwise derive it.
 BIN="${CLOVER_HOOK_BIN:-}"
 if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
-  ROOT="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+  # <tree>/cursor/scripts -> <tree>: bin/ hangs off the tree root, not off
+  # cursor/ (see the same climb in setup.sh).
+  ROOT="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
   OS="$(uname -s | tr '[:upper:]' '[:lower:]')"; ARCH="$(uname -m)"
   EXE_SUFFIX=""
   case "$OS" in
@@ -61,7 +63,7 @@ if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then
   safe_default; exit 0
 fi
 
-if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
+if [ -z "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}" ] && [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
   # Creds come from the "Clover MCP" server entry, which may live in the user's
   # own ~/.cursor/mcp.json or in any plugin's bundled .mcp.json (how the
   # team-pushed clover-mcp plugin ships them). Scan every mcp.json / .mcp.json
@@ -85,13 +87,13 @@ if [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
     [ -n "$_row" ] && break
   done < <(find "$HOME/.cursor" -type f \( -name 'mcp.json' -o -name '.mcp.json' \) 2>/dev/null | sort)
   if [ -n "$_row" ]; then
-    CAS_CLOVER_PLUGIN_CLIENT_ID="$(printf '%s' "$_row" | cut -f1)"
-    CAS_CLOVER_PLUGIN_CLIENT_SECRET="$(printf '%s' "$_row" | cut -f2)"
-    CAS_CLOVER_PLUGIN_AUTH_URL="$(printf '%s' "$_row" | cut -f3)"
+    CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID="$(printf '%s' "$_row" | cut -f1)"
+    CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET="$(printf '%s' "$_row" | cut -f2)"
+    CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL="$(printf '%s' "$_row" | cut -f3)"
     _url="$(printf '%s' "$_row" | cut -f4)"
-    CAS_CLOVER_PLUGIN_SERVER_URL="$(printf '%s' "$_url" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/]+).*#\1#')"
-    [ -n "$CAS_CLOVER_PLUGIN_AUTH_URL" ] || CAS_CLOVER_PLUGIN_AUTH_URL="https://auth.cloversec.io"
-    export CAS_CLOVER_PLUGIN_CLIENT_ID CAS_CLOVER_PLUGIN_CLIENT_SECRET CAS_CLOVER_PLUGIN_SERVER_URL CAS_CLOVER_PLUGIN_AUTH_URL
+    CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL="$(printf '%s' "$_url" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/]+).*#\1#')"
+    [ -n "$CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL" ] || CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL="https://auth.cloversec.io"
+    export CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL
   fi
 fi
 
@@ -102,7 +104,7 @@ cwd="$(printf '%s' "$IN" | jq -r '(.workspace_roots[0]) // .cwd // empty' 2>/dev
 # this plugin's manifest version, plus git context for the workspace root.
 # Computed here because the binary's own derivations are Claude-shaped
 # (.claude-plugin manifest path) or need a cwd that is a git repo.
-PLUG_DIR="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+PLUG_DIR="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 AGENT_VERSION="$(jq -r '.version // empty' "$PLUG_DIR/.cursor-plugin/plugin.json" 2>/dev/null)"
 GIT_BRANCH=""; GIT_REPO=""; GIT_URL=""
 if [ -n "$cwd" ] && [ -d "$cwd" ]; then

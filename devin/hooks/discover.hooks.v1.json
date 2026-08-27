@@ -1,0 +1,18 @@
+{
+  "_comment": "DISCOVERY config — install this INSTEAD of hooks.v1.json for ONE plan-mode session to learn Devin's real hook I/O. It only logs full stdin payloads (to ${CLOVER_LOG:-/tmp/clover-devin-hook.log}) and never blocks. Run a `/plan <task>` session, approve the plan, let one edit happen, then read the log and share it so the plan-source seam in run-hook.sh can be finalized. Remove afterwards.",
+  "SessionStart": [
+    { "hooks": [ { "type": "command", "command": "bash \"${DEVIN_PROJECT_DIR}/.devin/clover/scripts/run-hook.sh\" discover SessionStart" } ] }
+  ],
+  "UserPromptSubmit": [
+    { "hooks": [ { "type": "command", "command": "bash \"${DEVIN_PROJECT_DIR}/.devin/clover/scripts/run-hook.sh\" discover UserPromptSubmit" } ] }
+  ],
+  "PreToolUse": [
+    { "matcher": "", "hooks": [ { "type": "command", "command": "bash \"${DEVIN_PROJECT_DIR}/.devin/clover/scripts/run-hook.sh\" discover PreToolUse" } ] }
+  ],
+  "PostToolUse": [
+    { "matcher": "", "hooks": [ { "type": "command", "command": "bash \"${DEVIN_PROJECT_DIR}/.devin/clover/scripts/run-hook.sh\" discover PostToolUse" } ] }
+  ],
+  "Stop": [
+    { "hooks": [ { "type": "command", "command": "bash \"${DEVIN_PROJECT_DIR}/.devin/clover/scripts/run-hook.sh\" discover Stop" } ] }
+  ]
+}

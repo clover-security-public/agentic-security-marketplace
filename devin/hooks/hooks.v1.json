@@ -1,0 +1,39 @@
+{
+  "SessionStart": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" setup"
+        },
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" check-update",
+          "timeout": 90
+        }
+      ]
+    }
+  ],
+  "UserPromptSubmit": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" log-prompt"
+        }
+      ]
+    }
+  ],
+  "PreToolUse": [
+    {
+      "matcher": "write|edit|apply_patch",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" review-write",
+          "timeout": 300
+        }
+      ]
+    }
+  ]
+}

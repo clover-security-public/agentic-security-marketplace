@@ -1,0 +1,36 @@
+# Clover Codex managed hooks
+# Render @CLOVER_CODEX_MANAGED_DIR@ to the absolute directory delivered by MDM.
+# This file intentionally does not set allow_managed_hooks_only: that broad
+# policy would disable every developer/project/plugin hook, not only duplicate
+# Clover hooks. Do not install the marketplace Clover plugin on the same device.
+
+[features]
+hooks = true
+
+[hooks]
+managed_dir = "@CLOVER_CODEX_MANAGED_DIR@"
+
+[[hooks.PreToolUse]]
+matcher = "^apply_patch$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "@CLOVER_CODEX_MANAGED_DIR@/run-hook.sh codex-should-review-plan"
+timeout = 300
+statusMessage = "Clover is checking the plan"
+
+[[hooks.Stop]]
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = "@CLOVER_CODEX_MANAGED_DIR@/run-hook.sh codex-review-plan"
+timeout = 300
+statusMessage = "Clover is reviewing the proposed plan"
+
+[[hooks.UserPromptSubmit]]
+
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command = "@CLOVER_CODEX_MANAGED_DIR@/run-hook.sh codex-log-prompt"
+timeout = 20
+async = true

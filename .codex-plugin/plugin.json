@@ -1,0 +1,24 @@
+{
+  "name": "clover",
+  "version": "0.1.101",
+  "hooks": "./codex/hooks/hooks.json",
+  "description": "Protect your coding agent experience — Clover silently threat-models every plan, surfaces missing security requirements, and folds them in before code is written.",
+  "author": {
+    "name": "Clover Security"
+  },
+  "interface": {
+    "displayName": "Clover Security - Kura",
+    "shortDescription": "Review plans before coding",
+    "longDescription": "Clover reviews specs and implementation plans, returns missing security requirements to Codex, and guards code changes behind an approved security plan.",
+    "developerName": "Clover Security",
+    "category": "Security",
+    "capabilities": [
+      "Security review for specs",
+      "Security guardrails for code"
+    ],
+    "defaultPrompt": [
+      "Use Clover to review the security of my implementation plan before coding."
+    ],
+    "websiteURL": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura"
+  }
+}

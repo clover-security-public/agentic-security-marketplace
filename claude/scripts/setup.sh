@@ -122,7 +122,7 @@ fi
 # notes) that managed plugins reliably write installed_plugins.json on
 # install, this whole block can be deleted. The investigation issue should
 # track that evidence.
-if [ -n "${CLAUDE_PLUGIN_ROOT}" ] && command -v python3 >/dev/null 2>&1; then
+if [ -z "${CLOVER_SKIP_CLAUDE_REGISTRY:-}" ] && [ -n "${CLAUDE_PLUGIN_ROOT}" ] && command -v python3 >/dev/null 2>&1; then
   python3 - "$CLAUDE_PLUGIN_ROOT" "$REGISTRY_KEY" "$MARKETPLACE_NAME" <<'PYEOF' 2>&1 || true
 import json
 import os

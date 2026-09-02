@@ -13,6 +13,7 @@ jobs:
       - name: Validate plugin manifests
         run: |
           for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json \
+                          .codex-plugin/plugin.json \
                           clover-for-security-teams/.claude-plugin/plugin.json \
                           clover-for-security-teams/.cursor-plugin/plugin.json \
                           clover-for-developers/.claude-plugin/plugin.json \
@@ -39,11 +40,12 @@ jobs:
           CLAUDE_MARKET=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
           CURSOR_PLUGIN=$(jq -r '.version' .cursor-plugin/plugin.json)
           CURSOR_MARKET=$(jq -r '.metadata.version' .cursor-plugin/marketplace.json)
-          echo "claude/plugin=$CLAUDE_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/plugin=$CURSOR_PLUGIN cursor/marketplace=$CURSOR_MARKET"
-          if [ "$CLAUDE_PLUGIN" = "$CLAUDE_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_MARKET" ]; then
+          CODEX_PLUGIN=$(jq -r '.version' .codex-plugin/plugin.json)
+          echo "claude/plugin=$CLAUDE_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/plugin=$CURSOR_PLUGIN cursor/marketplace=$CURSOR_MARKET codex/plugin=$CODEX_PLUGIN"
+          if [ "$CLAUDE_PLUGIN" = "$CLAUDE_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$CODEX_PLUGIN" ]; then
             echo "Versions in sync: $CLAUDE_PLUGIN"
           else
-            echo "ERROR: plugin/marketplace versions are out of sync — all four manifests must match" >&2
+            echo "ERROR: plugin/marketplace versions are out of sync — all five manifests must match" >&2
             exit 1
           fi
 
@@ -229,7 +231,7 @@ jobs:
 
       - name: Validate hooks manifests
         run: |
-          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json clover-for-security-teams/hooks/hooks.json clover-for-developers/hooks/hooks.json; do
+          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json codex/hooks/hooks.json clover-for-security-teams/hooks/hooks.json clover-for-developers/hooks/hooks.json; do
             echo "Checking $manifest..."
             jq empty "$manifest"
             echo "Valid"
@@ -240,7 +242,7 @@ jobs:
           # clover-hook.cmd needs the exec bit too, unusually for a .cmd: it is
           # the Cursor hooks.json entry point on every platform, and POSIX shells
           # execute it directly before its line-1 dispatch reaches the .sh scripts.
-          for f in claude/scripts/*.sh cursor/scripts/*.sh cursor/scripts/clover-hook.cmd clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh; do
+          for f in claude/scripts/*.sh cursor/scripts/*.sh cursor/scripts/clover-hook.cmd codex/scripts/*.sh codex/managed/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh; do
             if [ ! -x "$f" ]; then
               echo "ERROR: $f is not executable"
               exit 1
@@ -256,8 +258,10 @@ jobs:
 
       - name: Test Cursor binary auto-update
         run: bash tests/cursor-auto-update.sh
+      - name: Test Codex developer and managed installers
+        run: bash tests/codex-support.sh
 
       - name: Shellcheck
         run: |
           sudo apt-get install -y shellcheck > /dev/null 2>&1
-          shellcheck claude/scripts/*.sh cursor/scripts/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh || true
+          shellcheck claude/scripts/*.sh cursor/scripts/*.sh codex/scripts/*.sh codex/managed/*.sh clover-for-security-teams/scripts/*.sh clover-for-developers/scripts/*.sh tests/*.sh || true

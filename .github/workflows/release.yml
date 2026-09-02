@@ -148,6 +148,14 @@ jobs:
 
           # The version field lives at a different JSON path in each manifest;
           # keep every location in lockstep (validate.yml enforces this).
+          #
+          # .codex-plugin/plugin.json is one of the five validate.yml compares,
+          # so it has to be bumped here too. Left out, it froze one bump behind
+          # on every release — and that stale number is exactly what
+          # codex-check-update compares an installed Codex plugin against.
+          # Guarded on existence, the way carry-forward-versions.sh guards its
+          # own edits, so a channel assembled without the Codex tree still
+          # releases instead of failing on a missing file.
           set_clover_version() {
             local v=$1
             jq --arg v "$v" '.version = $v'            .claude-plugin/plugin.json      > tmp.json && mv tmp.json .claude-plugin/plugin.json
@@ -155,6 +163,10 @@ jobs:
             jq --arg v "$v" '.version = $v'            .cursor-plugin/plugin.json      > tmp.json && mv tmp.json .cursor-plugin/plugin.json
             jq --arg v "$v" '.metadata.version = $v'   .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
             git add .claude-plugin/plugin.json .claude-plugin/marketplace.json .cursor-plugin/plugin.json .cursor-plugin/marketplace.json
+            if [ -f .codex-plugin/plugin.json ]; then
+              jq --arg v "$v" '.version = $v'          .codex-plugin/plugin.json       > tmp.json && mv tmp.json .codex-plugin/plugin.json
+              git add .codex-plugin/plugin.json
+            fi
           }
 
           set_subplugin_version() {
@@ -180,11 +192,17 @@ jobs:
           #   unchanged               -> skip.
 
           # ---- clover (main) -------------------------------------------------
-          # Everything clover ships across Claude + Cursor. Both shared
+          # Everything clover ships across Claude + Cursor + Codex. Both shared
           # marketplace manifests are excluded so an edit to another plugin's
           # entry in either one can't trigger a clover release; clover's own
           # entries are kept in lockstep by the bump below.
-          CLOVER_PATHS=(claude cursor bin .claude-plugin/plugin.json .cursor-plugin/plugin.json)
+          #
+          # codex/ and .codex-plugin/plugin.json belong here for the same reason
+          # claude/ and cursor/ do: this list decides whether a release is cut at
+          # all, so while they were missing a Codex-only change produced no bump,
+          # no tag and no release — it reached the marketplace repo but never a
+          # Codex user, since codex-check-update only sees released versions.
+          CLOVER_PATHS=(claude cursor codex bin .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json)
           CLOVER_V=$(jq -r '.version' .claude-plugin/plugin.json)
           CLOVER_RELEASE=false
           if [ "$IS_BETA" = true ]; then

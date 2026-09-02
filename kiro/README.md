@@ -117,38 +117,62 @@ them for an unattended install, and the pair is echoed on the last line of the
 install output. Wrong hosts are the one failure that looks like success: auth
 fails, every hook fails open, and nothing reaches Clover.
 
-Then open a repo in Kiro and **trust the workspace** (see below). Confirm with
-the Output panel → Kiro agent channel:
-`[KiroAgent] v2 hooks loaded 3 standalone hooks from .kiro/hooks/`.
+Then open a repo in Kiro and run through **Verify it works** below.
 
-## Workspace trust — required, or hooks stay silent
+## Verify it works
 
-The tell in Kiro's own log is `hooks.v2.executionDisabledUntrustedWorkspace`.
+Five minutes, end to end: the install is only proven once a spec review has
+actually blocked a task. Run it in a scratch repo, not a real one.
 
-Kiro turns **every** hook into a no-op in an untrusted folder, logging the
-suppression only at debug level — valid files, no card, no error, nothing in
-Clover. Every folder starts untrusted, so this is the most common reason a
-working install looks dead. Pick one:
+**1. Hooks loaded.** Open the repo in Kiro, then Output panel (`⌘⇧U`) → the Kiro
+agent log channel:
 
-- **Trust a single folder** — open it in Kiro; when the trust banner appears,
-  choose to trust it. Or command palette → **Workspaces: Manage Workspace
-  Trust**. This is the safest option and the one to demo.
-- **Trust a parent folder once** — in *Manage Workspace Trust*, add the folder
-  that contains your repos (e.g. `~/Code`) to **Trusted Folders**. Everything
-  under it is trusted automatically, so new repos need no per-folder step,
-  while a repo cloned elsewhere still prompts.
-- **Trust every folder (turn the gate off)** — add to Kiro's user
-  `settings.json` (command palette → *Preferences: Open User Settings (JSON)*):
+```
+[KiroAgent] v2 hooks loaded 3 standalone hooks from .kiro/hooks/
+```
 
-  ```json
-  { "security.workspace.trust.enabled": false }
-  ```
+`0` means the loader found no valid file — check the same channel for a schema
+warning. Nothing at all, or hooks that load but never fire, is almost always
+workspace trust; see *Troubleshooting*.
 
-  Convenient, but it also lets hooks committed inside any repo you open run
-  automatically — a deliberate reduction of Kiro's own protection. Prefer the
-  parent-folder option unless you accept that trade-off. For a fleet, push this
-  (or a trusted-folders list) through managed settings / MDM so the org owns
-  the decision rather than each developer.
+**2. The hooks run.** Send any prompt. You should see one `Clover Security` card
+in the chat, and a fresh line in the hook log:
+
+```bash
+tail -5 ~/.kiro/clover/.clover-hook.log     # or <repo>/.kiro/clover/... for a repo install
+```
+
+**3. A spec gets reviewed.** Ask Kiro for something with obvious security
+surface, so the review has something to find:
+
+> Create a spec for a login endpoint that accepts an email and password and
+> returns a session token.
+
+Let it finish writing the spec. Capture reviews it once the spec is **finished**
+(`tasks.md` — or `spec.md` in the single-file flow) and **settled** (unchanged
+for `CLOVER_KIRO_SPEC_SETTLE_SECONDS`, default 4), so expect a few seconds of
+quiet before anything happens. Then:
+
+```bash
+ls .kiro/steering/clover-requirements-*.md    # requirements Kiro will now always see
+ls .kiro/specs/*/.clover-requirements.md      # the sidecar beside the spec
+```
+
+Either file appearing means the round trip to Clover worked: the spec was sent,
+reviewed, and requirements came back. The plan also shows up in the Clover app.
+
+**4. The gate blocks.** Open the spec's `tasks.md` and start task 1. While any
+must stands, `PreTaskExec` stops it and hands the requirements to the agent —
+you'll see them in the chat rather than the task running.
+
+**5. The gate clears.** Have the agent fold the requirements into the spec and
+save, then start the task again. Capture re-judges the revised spec, and once
+the musts are genuinely covered the task proceeds. A cosmetic edit comes back
+denied with the same musts — that is the intended behaviour, not a failure.
+
+If steps 1–2 pass but 3 never produces requirements, the spec may simply have
+passed review; re-run with a deliberately thin spec, or set `CLOVER_DEBUG=1` and
+read the hook log to see which spec was resolved and what the backend returned.
 
 ## When a new Kiro build changes its payload
 
@@ -229,7 +253,41 @@ read is never replaced.
   skipped before any download — a running executable cannot be renamed over
   there — so Windows Cursor installs update via Cursor's own marketplace flow.
 
-## Debugging
+## Troubleshooting
+
+### Hooks never fire — workspace trust
+
+Most installs need nothing here: accepting Kiro's trust banner when you open a
+repo is enough. This section is for the case where the hooks load but never run.
+
+Kiro turns **every** hook into a no-op in an untrusted folder, logging the
+suppression only at debug level — valid files, no card, no error, nothing in
+Clover. The tell in Kiro's own log is
+`hooks.v2.executionDisabledUntrustedWorkspace`. Every folder starts untrusted,
+so this is the most common reason a working install looks dead. Any of these
+fixes it:
+
+- **Trust a single folder** — open it in Kiro; when the trust banner appears,
+  choose to trust it. Or command palette → **Workspaces: Manage Workspace
+  Trust**. This is the safest option and the one to demo.
+- **Trust a parent folder once** — in *Manage Workspace Trust*, add the folder
+  that contains your repos (e.g. `~/Code`) to **Trusted Folders**. Everything
+  under it is trusted automatically, so new repos need no per-folder step,
+  while a repo cloned elsewhere still prompts.
+- **Trust every folder (turn the gate off)** — add to Kiro's user
+  `settings.json` (command palette → *Preferences: Open User Settings (JSON)*):
+
+  ```json
+  { "security.workspace.trust.enabled": false }
+  ```
+
+  Convenient, but it also lets hooks committed inside any repo you open run
+  automatically — a deliberate reduction of Kiro's own protection. Prefer the
+  parent-folder option unless you accept that trade-off. For a fleet, push this
+  (or a trusted-folders list) through managed settings / MDM so the org owns
+  the decision rather than each developer.
+
+### Diagnostics
 
 `CLOVER_DEBUG=1` in `env.sh` for diagnostics, `CLOVER_KIRO_OBSERVE=1` to
 downgrade the `PreTaskExec` gate to observe-only during a staged rollout, and

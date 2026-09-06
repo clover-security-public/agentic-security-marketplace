@@ -268,8 +268,12 @@ ASSET_NAME="clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
 # trees pin their exact -beta.N build.
 PLUGIN_VERSION="$FULL_VERSION"
 
-# Skip if binary exists and version matches
-if [ -x "$BINARY" ] && [ -f "$VERSION_FILE" ] && [ "$(cat "$VERSION_FILE")" = "$PLUGIN_VERSION" ]; then
+# A self-updated binary (check-update) runs ahead of the plugin it came from;
+# the bundled copy is deployed only when the plugin is the newer of the two.
+plugin_is_newer() {
+  [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$1" ]
+}
+if [ -x "$BINARY" ] && ! plugin_is_newer "$PLUGIN_VERSION" "$(cat "$VERSION_FILE" 2>/dev/null)"; then
   exit 0
 fi
 

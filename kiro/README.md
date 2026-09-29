@@ -16,6 +16,7 @@ That gives Clover a real plan artifact plus the closest analogue to Claude's
 
 | Trigger | Subcommand | Blocks |
 |---|---|---|
+| `SessionStart` | `kiro-check-update` | no |
 | `UserPromptSubmit` | `kiro-log-prompt` | no |
 | `PostFileSave` on `.kiro/specs/**/*.md` | `kiro-capture-spec` | no |
 | `PreTaskExec` | `kiro-pre-task` | **yes** |
@@ -93,6 +94,17 @@ git so cloning developers get the hooks with no install step):
 curl -fsSL .../kiro/scripts/install.sh | bash -s -- /path/to/repo
 ```
 
+**Pick one scope per machine.** Kiro loads a repository's `.kiro/hooks/` and the
+machine-wide `~/.kiro/hooks/` together, so installing both runs every Clover
+hook twice — and the repository copy starts with `FILL_ME` credentials, so one
+of each pair fails open. The installer therefore refuses the second scope and
+exits 0 with an `already installed` line: a repository install when
+`~/.kiro/hooks/clover.json` exists, or a machine-wide install run from inside a
+repository that has its own copy. `CLOVER_ALLOW_DUPLICATE_INSTALL=1` overrides
+it, for a team lead with Clover machine-wide who is deliberately creating the
+drop-in to commit. It cannot catch the other case: a teammate who has Clover
+machine-wide and clones a repository carrying the committed drop-in.
+
 The script also runs from a local checkout of the marketplace tree, copying
 instead of downloading. `CLOVER_MARKETPLACE_URL` overrides the download base
 (the beta ring's raw URL, or a mirror). Layout after a machine-wide install:
@@ -128,7 +140,7 @@ actually blocked a task. Run it in a scratch repo, not a real one.
 agent log channel:
 
 ```
-[KiroAgent] v2 hooks loaded 3 standalone hooks from .kiro/hooks/
+[KiroAgent] v2 hooks loaded 4 standalone hooks from .kiro/hooks/
 ```
 
 `0` means the loader found no valid file — check the same channel for a schema
@@ -202,35 +214,60 @@ diagnostics log — the adapter records the event name and the spec it resolved.
 - **Spec tasks can run concurrently**, so `PreTaskExec` may fire in parallel.
   The approved-plan-hash short-circuit in `runPlanReview` dedupes the common
   case.
-- **`CodingAgentType` has no `Kiro` member** in Leaf yet, and the endpoints
-  reject an unknown enum string, so activity is recorded as `Other`. Set
-  `CLOVER_KIRO_CODING_AGENT=Kiro` (or change `kiroDefaultCodingAgent`) in the
-  same release that adds the enum value.
-- **Powers cannot carry hooks.** Kiro's power installer copies only `POWER.md`,
-  `mcp.json` and `steering/`. A Clover *power* can ship steering and an MCP
-  server; the hooks ship as this drop-in.
+- **Activity is recorded as `CodingAgentType.Kiro`.** The backend's enum rejects
+  a string it does not know, so a client talking to a backend that predates that
+  member has to name one it has: `CLOVER_KIRO_CODING_AGENT=Other`.
+- **A power cannot run hooks.** Kiro's hook engine reads only `.kiro/hooks/`
+  (plus the user-level global hooks dir), never a power's directory — verified
+  on 1.1.70, whose hook registry knows two sources, standalone files and agent
+  profiles. So the hooks install through `install.sh`, and the power carries
+  guidance only. Kiro's marketing page says powers "bundle MCP tools, steering
+  files, and hooks"; the docs, the official powers (no hook files) and the
+  installer code all disagree. The hook-running plugin loader in 1.1.70 belongs
+  to VS Code's own agent host, which Kiro's agent does not use.
 
-## The companion power
+## The power
 
-`clover-power/` is the Kiro *power* half of the surface: steering that teaches
-the agent to honor Clover's review verdicts and `.clover-requirements.md`
-files. Kiro installs powers straight from a Git URL — a subdirectory works via
-a `/tree/<branch>/<path>` link — so once this tree is delivered to a
-marketplace repo, install it with:
+**This whole directory is the Kiro power**, in the Agent Plugins format:
+`plugin.json` at the root, documentation in `dev.kiro/INSTRUCTIONS.md`, and
+steering in `dev.kiro/steering/`. Kiro copies the whole directory when it
+installs the power, so `hooks/` and `scripts/` travel along, inert — the hooks
+are installed by the one-liner above, run in the developer's own terminal so it
+can prompt for credentials. There is no `clover-power/` subdirectory and no
+`POWER.md`: with a `plugin.json` present Kiro ignores the legacy manifest, so
+keeping one would only be a second source of truth.
 
-1. Command palette → **Powers: Configure** → **Import power from GitHub**.
-2. Paste the marketplace URL for this directory, e.g. for the beta ring:
-   `https://github.com/clover-security-public/clover-security-marketplace-beta/tree/main/kiro/clover-power`
+Install it from a Git URL — Powers panel → **Add Custom Power** → **Import
+power from GitHub** — pasting this directory's URL:
 
-The installer copies only `POWER.md` and `steering/` and registers the power as
-`clover-power` (Kiro derives the name from the last path segment). The beta
-marketplace repo is private, so the clone authenticates through your local git
-credentials; the public marketplace URL needs none.
+```
+https://github.com/clover-security-public/agentic-security-marketplace/tree/main/kiro
+```
 
-The power is optional and additive: the hooks enforce, the power only improves
-how the agent responds to an enforcement. It ships no MCP server yet — Kiro's
-remote-MCP auth against the Clover streaming endpoint is untested, and a
-failing MCP entry would make the whole power look broken.
+Kiro names a GitHub import after the last URL segment, so it appears as `kiro`.
+The beta ring's URL is the same path under `clover-security-marketplace-beta`;
+that repo is private, so the clone authenticates through your local git
+credentials.
+
+What the power adds: steering and instructions that teach the agent to treat
+Clover's requirements as part of the spec, and to hand the developer the
+install command when asked. It enforces nothing — the hooks do.
+
+It ships no MCP server. Kiro's remote-MCP auth against the Clover streaming
+endpoint is untested, and a failing MCP entry would make the whole power look
+broken.
+
+## Privacy and support
+
+- Privacy policy: <https://clover.security/privacy-policy/>
+- Terms of use: <https://clover.security/terms-of-use/>
+- Support: <https://clover.security/support/>
+- Product documentation:
+  <https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura>
+
+The hooks send the developer's prompt, the spec under review and the repository
+identity to the Clover tenant configured in `env.sh`. Nothing else leaves the
+machine, and credentials never leave it at all.
 
 ## Auto-update
 

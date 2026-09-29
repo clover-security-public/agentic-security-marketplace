@@ -59,6 +59,26 @@ else
   DEST="${HOME}/.kiro"
   HOOK_COMMAND_PREFIX="${HOME}/.kiro/clover"
 fi
+
+# Kiro loads a repository's .kiro/hooks/ and the machine-wide ~/.kiro/hooks/
+# together, so installing in both scopes runs every Clover hook twice - and a
+# repo install starts from FILL_ME credentials, so one of each pair fails open.
+# Refuse the second scope unless explicitly asked for it. The home-directory
+# check keeps a machine-wide re-run from reading its own install as a repo one.
+if [ -z "${CLOVER_ALLOW_DUPLICATE_INSTALL:-}" ]; then
+  if [ -n "$TARGET" ] && [ -f "${HOME}/.kiro/hooks/clover.json" ]; then
+    printf 'clover: already installed machine-wide (%s), which covers every repository - nothing installed into %s\n' "${HOME}/.kiro" "$TARGET"
+    printf 'clover: installing here as well would run every Clover hook twice; set CLOVER_ALLOW_DUPLICATE_INSTALL=1 to do it anyway\n'
+    exit 0
+  fi
+  if [ -z "$TARGET" ] && [ -f "$PWD/.kiro/hooks/clover.json" ] \
+    && [ "$(cd "$PWD" && pwd -P)" != "$(cd "$HOME" && pwd -P)" ]; then
+    printf 'clover: already installed in this repository (%s) - nothing installed machine-wide\n' "$PWD/.kiro"
+    printf 'clover: installing machine-wide as well would run every Clover hook twice here; set CLOVER_ALLOW_DUPLICATE_INSTALL=1 to do it anyway\n'
+    exit 0
+  fi
+fi
+
 mkdir -p "$DEST/hooks" "$DEST/clover/scripts" "$DEST/clover/bin"
 
 obtain "kiro/hooks/clover.json" "$DEST/hooks/clover.json.tmp"

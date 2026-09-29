@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "clover-security",
+  "displayName": "Clover Security",
+  "version": "0.1.103",
+  "description": "Clover reviews every spec before implementation starts, hands back the security requirements it is missing, and blocks the task until they are covered.",
+  "author": {
+    "name": "Clover Security",
+    "url": "https://clover.security"
+  },
+  "homepage": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
+  "repository": "https://github.com/clover-security-public/agentic-security-marketplace",
+  "license": "AGPL-3.0-only",
+  "keywords": [
+    "security",
+    "appsec",
+    "clover",
+    "security-review",
+    "security-requirements",
+    "threat-model",
+    "spec",
+    "devsecops"
+  ]
+}

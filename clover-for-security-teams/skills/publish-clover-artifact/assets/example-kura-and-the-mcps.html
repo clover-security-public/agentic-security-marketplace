@@ -1,0 +1,219 @@
+<title>Kura and the Clover MCPs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --clover-green:#154336; --dark-green:#15291f; --sage:#cef1ae; --cream:#fcf4e1; --daylight:#f5f5f4;
+  --bg:#ecece9; --sheet:#f5f5f4; --panel:#efefec; --text:#15291f; --dim:#4c5d54; --faint:#6f7d75;
+  --accent:#154336; --hl:#cef1ae; --hl-text:#15291f; --rule:rgba(21,41,31,.14); --chip-bg:rgba(206,241,174,.55);
+  --chip-border:rgba(21,67,54,.28); --band-a:#154336; --band-b:#2f6b3f; --band-text:#fcf4e1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#101f18; --sheet:#15291f; --panel:#1b3428; --text:#fcf4e1; --dim:#b3c7b8; --faint:#8fa596;
+    --accent:#cef1ae; --hl:#cef1ae; --hl-text:#15291f; --rule:rgba(206,241,174,.16); --chip-bg:rgba(206,241,174,.12);
+    --chip-border:rgba(206,241,174,.3); --band-a:#0d1c15; --band-b:#23513a; --band-text:#fcf4e1;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#101f18; --sheet:#15291f; --panel:#1b3428; --text:#fcf4e1; --dim:#b3c7b8; --faint:#8fa596;
+  --accent:#cef1ae; --hl:#cef1ae; --hl-text:#15291f; --rule:rgba(206,241,174,.16); --chip-bg:rgba(206,241,174,.12);
+  --chip-border:rgba(206,241,174,.3); --band-a:#0d1c15; --band-b:#23513a; --band-text:#fcf4e1;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Public Sans',system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.55;padding:40px 16px 72px;}
+.stack{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.sheet{background:var(--sheet);border-radius:4px;padding:48px clamp(20px,6vw,56px) 56px;display:flex;flex-direction:column;gap:32px;overflow:hidden}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{width:116px;height:auto;color:var(--accent);flex:none}
+.logo .mark path{fill:currentColor}
+.chip{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--chip-border);border-radius:6px;padding:3px 8px;color:var(--dim);white-space:nowrap}
+.chip.fill{background:var(--chip-bg);color:var(--text)}
+h1,h2{font-family:'Fraunces',Georgia,'Times New Roman',serif;font-optical-sizing:auto;font-weight:300;letter-spacing:-.015em;margin:0;text-wrap:balance;color:var(--accent)}
+h1{font-size:clamp(44px,8vw,76px);line-height:1.02}
+h2{font-size:clamp(30px,5vw,42px);line-height:1.08}
+h1 mark,h2 mark{background:var(--hl);color:var(--hl-text);padding:0 .08em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.lede{font-size:17px;line-height:1.6;color:var(--text);max-width:62ch;margin:0}
+.lede+.lede{margin-top:-18px}
+p{margin:0}
+.cards{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:22px 24px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.card-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card h3{font-size:18px;font-weight:600;margin:0;color:var(--accent)}
+.card .what{font-size:16px;max-width:60ch}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;border-top:1px solid var(--rule);padding-top:14px}
+.facts dt{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+.facts dd{margin:0;font-size:14px;color:var(--dim)}
+.key{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:baseline;border-top:1px solid var(--rule);padding-top:20px}
+.key .k{font-family:'Fraunces',Georgia,serif;font-size:20px;color:var(--accent);font-weight:400}
+.key p{color:var(--dim);max-width:62ch}
+.tablewrap{overflow-x:auto;margin:0 -4px}
+table{width:100%;border-collapse:collapse;min-width:640px;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:14px 12px;border-bottom:1px solid var(--rule)}
+thead th{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding-top:0}
+thead th.kura{color:var(--accent)}
+tbody th{font-weight:600;color:var(--accent);width:17%;font-size:14px}
+tbody td{color:var(--dim);width:27.6%}
+.section-label{font-size:15px;font-weight:600;color:var(--accent);margin:0 0 -18px;padding-bottom:10px;border-bottom:1px solid var(--rule)}
+.picks{display:flex;flex-direction:column}
+.pick{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:10px 24px;padding:14px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.pick q{font-size:16px;color:var(--text)}
+.pick q::before{content:'\201C'} .pick q::after{content:'\201D'}
+.pick .ans{display:flex;justify-content:flex-start}
+.qa{display:flex;flex-direction:column;gap:18px}
+.qa div{display:grid;grid-template-columns:minmax(0,1fr);gap:4px}
+.qa h4{margin:0;font-size:16px;font-weight:600;color:var(--accent)}
+.qa p{color:var(--dim);max-width:66ch}
+.band{margin:8px calc(-1*clamp(20px,6vw,56px)) -56px;padding:36px clamp(20px,6vw,56px) 40px;background:linear-gradient(120deg,var(--band-a),var(--band-b));color:var(--band-text);display:flex;flex-direction:column;gap:14px}
+.band .label{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
+.docs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.docs a{color:var(--band-text);text-decoration:none;border:1px solid rgba(252,244,225,.28);border-radius:8px;padding:12px 14px;font-size:14px;display:flex;flex-direction:column;gap:2px}
+.docs a span{font-size:12px;opacity:.7}
+.docs a:hover,.docs a:focus-visible{background:rgba(252,244,225,.1);outline:none}
+.band p{font-size:13px;opacity:.8}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:640px){
+  .facts,.docs{grid-template-columns:minmax(0,1fr)}
+  .pick{grid-template-columns:minmax(0,1fr)}
+  .key{grid-template-columns:minmax(0,1fr);gap:4px}
+  .key p{margin-bottom:10px}
+}
+.says{display:flex;flex-direction:column}
+.say{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:16px 0;border-bottom:1px solid var(--rule)}
+.say q{font-family:'Fraunces',Georgia,serif;font-size:19px;font-weight:400;color:var(--accent)}
+.say q::before{content:'\201C'} .say q::after{content:'\201D'}
+.say p{color:var(--dim);max-width:66ch}
+.send{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;color:var(--faint)}
+.journey{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.step{display:grid;grid-template-columns:44px minmax(0,1fr);gap:16px;padding:22px 0;border-top:1px solid var(--rule)}
+.step:last-child{border-bottom:1px solid var(--rule)}
+.num{font-family:'Fraunces',Georgia,serif;font-size:34px;font-weight:300;line-height:1;color:var(--accent)}
+.step-body{display:flex;flex-direction:column;gap:8px}
+.step-body h3{font-size:18px;font-weight:600;margin:0;color:var(--accent)}
+.step-body p{color:var(--dim);max-width:64ch}
+.note{color:var(--dim);font-size:14px}
+</style>
+<div class="stack">
+
+<section class="sheet" aria-labelledby="h-main">
+  <div class="top"><svg class="logo" viewBox="0 0 285 61" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Clover"> <path d="M31.4017 50.9132C33.331 56.0773 37.6834 60.8531 43.7244 60.8531H61.0468V43.5884C61.0468 37.5665 56.2537 33.2252 51.0732 31.3037C50.7133 31.1705 50.4626 30.8269 50.4626 30.4252C50.4626 30.0355 50.7064 29.6856 51.0732 29.5499C56.2537 27.6284 61.0468 23.287 61.0468 17.2653V0.000465289L43.7244 0.000464535C37.6834 0.000464272 33.331 4.77629 31.4017 9.94025C31.2655 10.306 30.9146 10.5488 30.5236 10.5488C30.1326 10.5488 29.7816 10.306 29.6454 9.94025C27.7161 4.77629 23.3639 0.000463648 17.3227 0.000463384L0.000377876 0.00046263L0.000377119 17.2653C0.000376855 23.287 4.79326 27.6284 9.97394 29.5499C10.3338 29.6831 10.5845 30.0267 10.5845 30.4284C10.5845 30.8181 10.3409 31.1679 9.97394 31.3037C4.79326 33.2252 0.000376229 37.5665 0.000375965 43.5884L0.000375207 60.8531H17.3227C23.3639 60.8531 27.7161 56.0773 29.6454 50.9132C29.7816 50.5475 30.1326 50.3049 30.5236 50.3049C30.9146 50.3049 31.2655 50.5475 31.4017 50.9132ZM25.0288 38.3366L12.9865 49.6531C12.4994 50.1116 11.735 50.1003 11.2623 49.6291C10.788 49.1562 10.7784 48.3961 11.2367 47.9105L22.5899 35.9069C24.0465 34.3688 24.774 32.3978 24.774 30.4268C24.774 28.4558 24.0465 26.4847 22.5899 24.9466L11.2367 12.9431C10.7784 12.4575 10.788 11.6973 11.2623 11.2244C11.735 10.7533 12.4994 10.7421 12.9865 11.2005L25.0288 22.5171C26.572 23.9674 28.5478 24.6926 30.5236 24.6926C32.4994 24.6926 34.4751 23.9674 36.0184 22.5171L48.0606 11.2005C48.5477 10.7421 49.312 10.7533 49.7847 11.2244C50.2591 11.6973 50.2687 12.4575 49.8105 12.9431L38.4572 24.9466C37.0006 26.4847 36.2731 28.4558 36.2731 30.4268C36.2731 32.3978 37.0006 34.3688 38.4572 35.9069L49.8105 47.9105C50.2687 48.3961 50.2591 49.1562 49.7847 49.6291C49.312 50.1003 48.5477 50.1116 48.0606 49.6531L36.0184 38.3366C34.4751 36.8863 32.4994 36.1611 30.5236 36.1611C28.5478 36.1611 26.572 36.8863 25.0288 38.3366Z" fill="currentColor"/> <path d="M76.3085 30.3879C76.3085 11.1528 90.1618 1.69022 104.246 1.69022C115.098 1.69022 122.948 6.65411 126.257 14.1775L120.331 20.0721L119.715 19.9945C118.176 12.7038 112.327 6.57642 104.169 6.57642C93.317 6.57642 85.0823 14.953 85.0823 29.9223C85.0823 44.7363 94.3178 52.6475 104.631 52.6475C113.404 52.6475 119.715 48.1492 122.178 39.0746L127.181 39.8501C125.026 52.2599 115.79 59.1625 104.015 59.1625C89.546 59.1628 76.3085 49.4676 76.3085 30.3879Z" fill="currentColor"/> <path d="M142.443 57.7019V58.3174H129.725V57.7019L132.297 54.0858V8.15313L129.725 4.22929V3.61374L139.869 1.69022V54.0858L142.443 57.7019Z" fill="currentColor"/> <path d="M144.986 38.4177C144.986 26.5851 153.327 17.7491 164.911 17.7491C176.418 17.7491 184.836 26.5851 184.836 38.4177C184.836 50.3271 176.418 59.1631 164.911 59.1631C153.327 59.1631 144.986 50.3271 144.986 38.4177ZM176.572 38.4177C176.572 28.8901 171.629 22.1287 164.911 22.1287C158.114 22.1287 153.327 28.8901 153.327 38.4177C153.327 47.9453 158.114 54.7835 164.911 54.7835C171.629 54.7835 176.572 47.9453 176.572 38.4177Z" fill="currentColor"/> <path d="M185.978 22.361L182.293 18.3745V17.7491H195.882V18.3745L194.04 22.2828L203.176 49.2506L212.159 22.2828L210.316 18.3745L210.393 17.7491H221.295V18.3745L217.687 22.361L204.328 58.3177H198.953L185.978 22.361Z" fill="currentColor"/> <path d="M238.601 17.7491C252.174 17.7491 257.216 27.7377 256.595 37.7261H227.743C227.898 47.4073 233.405 53.0162 240.773 53.0162C246.513 53.0162 250.546 49.8661 252.485 44.2572L256.906 45.4865C255.044 53.7078 248.607 59.1631 239.299 59.1631C227.2 59.1631 219.599 49.8661 219.599 38.4177C219.599 27.0461 226.735 17.7491 238.601 17.7491ZM248.296 33.8844C247.908 27.3535 244.496 21.8212 238.601 21.8212C232.629 21.8212 228.906 27.046 227.976 33.8844H248.296Z" fill="currentColor"/> <path d="M260.297 57.7043L263.011 54.1001V24.5746L260.297 20.6634V20.0498L271.001 18.1325V26.6451C273.017 21.2001 276.973 17.7491 282.17 17.7491C283.178 17.7491 284.109 17.8258 284.885 18.0558L284.342 25.8015C276.353 23.4242 272.319 29.2525 271.001 34.3139V54.023L274.646 57.7043V58.3177H260.297V57.7043Z" fill="currentColor"/> </svg><span class="chip">For TAMs and SEs</span></div>
+  <h1 id="h-main">One feature, <mark>plan to report</mark></h1>
+  <p class="lede">Clover keeps one security context per application: what it does, how it is built, what was reviewed, decided and fixed. Three integrations carry that context into the coding agents a customer already runs. Kura pushes it into every coding session by itself. The two MCPs let a person pull from it when they ask.</p>
+  <p class="lede">Here is where each one comes in on a single feature.</p>
+  <ol class="journey">
+    <li class="step">
+      <span class="num">1</span>
+      <div class="step-body">
+        <div class="card-head"><span class="chip fill">Kura</span><span class="chip">Security team, once</span></div>
+        <h3>Kura goes out to every developer</h3>
+        <p>An admin rolls Kura out through Claude managed settings, a Cursor team marketplace or MDM. It starts in Visibility mode: developers notice nothing, and every coding session shows up in Clover under Agentic Development, Visibility and Coverage. When the team is ready, the admin moves it to Advisory or Enforcement.</p>
+        <span class="send">Doc: Connecting Kura to coding agents</span>
+      </div>
+    </li>
+    <li class="step">
+      <span class="num">2</span>
+      <div class="step-body">
+        <div class="card-head"><span class="chip fill">Kura</span><span class="chip">Developer, in the coding agent</span></div>
+        <h3>The plan arrives with its security requirements</h3>
+        <p>A developer plans a feature in Claude Code. When they exit plan mode, in Advisory or Enforcement, Kura adds the requirements for this task, each tied to a named threat in the application's threat model, and attaches the plan to the relevant security review. The developer asked for nothing. The hooks ran as part of the session.</p>
+        <span class="send">Doc: About Kura</span>
+      </div>
+    </li>
+    <li class="step">
+      <span class="num">3</span>
+      <div class="step-body">
+        <div class="card-head"><span class="chip fill">Developers MCP</span><span class="chip">Developer, in the editor</span></div>
+        <h3>The developer answers the review from Cursor</h3>
+        <p>The feature's design doc has a security review. From Cursor, the developer opens it, reads its threats and requirements, and marks a threat covered by design with a written reason. Clover checks the reason against that threat's attack mechanism before it records anything. A response of irrelevant or risk accepted goes to the security team's queue.</p>
+        <span class="send">Doc: Clover for Developers</span>
+      </div>
+    </li>
+    <li class="step">
+      <span class="num">4</span>
+      <div class="step-body">
+        <div class="card-head"><span class="chip fill">Security Teams MCP</span><span class="chip">Security lead, in their own agent</span></div>
+        <h3>The security lead asks about the whole program</h3>
+        <p>From Claude, the security lead runs /rank-top-threats across the organization, then /plan-remediation on what comes back. With an API token, the same connection can run a scheduled job that sends the CISO the three reviews that matter most every morning.</p>
+        <span class="send">Doc: Clover for Security Teams</span>
+      </div>
+    </li>
+  </ol>
+  <p class="note">Each step works without the others. A customer can start at any one of them and add the rest later.</p>
+</section>
+
+<section class="sheet" aria-labelledby="h-side">
+  <div class="top"> <svg class="logo" viewBox="0 0 285 61" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Clover"> <path d="M31.4017 50.9132C33.331 56.0773 37.6834 60.8531 43.7244 60.8531H61.0468V43.5884C61.0468 37.5665 56.2537 33.2252 51.0732 31.3037C50.7133 31.1705 50.4626 30.8269 50.4626 30.4252C50.4626 30.0355 50.7064 29.6856 51.0732 29.5499C56.2537 27.6284 61.0468 23.287 61.0468 17.2653V0.000465289L43.7244 0.000464535C37.6834 0.000464272 33.331 4.77629 31.4017 9.94025C31.2655 10.306 30.9146 10.5488 30.5236 10.5488C30.1326 10.5488 29.7816 10.306 29.6454 9.94025C27.7161 4.77629 23.3639 0.000463648 17.3227 0.000463384L0.000377876 0.00046263L0.000377119 17.2653C0.000376855 23.287 4.79326 27.6284 9.97394 29.5499C10.3338 29.6831 10.5845 30.0267 10.5845 30.4284C10.5845 30.8181 10.3409 31.1679 9.97394 31.3037C4.79326 33.2252 0.000376229 37.5665 0.000375965 43.5884L0.000375207 60.8531H17.3227C23.3639 60.8531 27.7161 56.0773 29.6454 50.9132C29.7816 50.5475 30.1326 50.3049 30.5236 50.3049C30.9146 50.3049 31.2655 50.5475 31.4017 50.9132ZM25.0288 38.3366L12.9865 49.6531C12.4994 50.1116 11.735 50.1003 11.2623 49.6291C10.788 49.1562 10.7784 48.3961 11.2367 47.9105L22.5899 35.9069C24.0465 34.3688 24.774 32.3978 24.774 30.4268C24.774 28.4558 24.0465 26.4847 22.5899 24.9466L11.2367 12.9431C10.7784 12.4575 10.788 11.6973 11.2623 11.2244C11.735 10.7533 12.4994 10.7421 12.9865 11.2005L25.0288 22.5171C26.572 23.9674 28.5478 24.6926 30.5236 24.6926C32.4994 24.6926 34.4751 23.9674 36.0184 22.5171L48.0606 11.2005C48.5477 10.7421 49.312 10.7533 49.7847 11.2244C50.2591 11.6973 50.2687 12.4575 49.8105 12.9431L38.4572 24.9466C37.0006 26.4847 36.2731 28.4558 36.2731 30.4268C36.2731 32.3978 37.0006 34.3688 38.4572 35.9069L49.8105 47.9105C50.2687 48.3961 50.2591 49.1562 49.7847 49.6291C49.312 50.1003 48.5477 50.1116 48.0606 49.6531L36.0184 38.3366C34.4751 36.8863 32.4994 36.1611 30.5236 36.1611C28.5478 36.1611 26.572 36.8863 25.0288 38.3366Z" fill="currentColor"/> <path d="M76.3085 30.3879C76.3085 11.1528 90.1618 1.69022 104.246 1.69022C115.098 1.69022 122.948 6.65411 126.257 14.1775L120.331 20.0721L119.715 19.9945C118.176 12.7038 112.327 6.57642 104.169 6.57642C93.317 6.57642 85.0823 14.953 85.0823 29.9223C85.0823 44.7363 94.3178 52.6475 104.631 52.6475C113.404 52.6475 119.715 48.1492 122.178 39.0746L127.181 39.8501C125.026 52.2599 115.79 59.1625 104.015 59.1625C89.546 59.1628 76.3085 49.4676 76.3085 30.3879Z" fill="currentColor"/> <path d="M142.443 57.7019V58.3174H129.725V57.7019L132.297 54.0858V8.15313L129.725 4.22929V3.61374L139.869 1.69022V54.0858L142.443 57.7019Z" fill="currentColor"/> <path d="M144.986 38.4177C144.986 26.5851 153.327 17.7491 164.911 17.7491C176.418 17.7491 184.836 26.5851 184.836 38.4177C184.836 50.3271 176.418 59.1631 164.911 59.1631C153.327 59.1631 144.986 50.3271 144.986 38.4177ZM176.572 38.4177C176.572 28.8901 171.629 22.1287 164.911 22.1287C158.114 22.1287 153.327 28.8901 153.327 38.4177C153.327 47.9453 158.114 54.7835 164.911 54.7835C171.629 54.7835 176.572 47.9453 176.572 38.4177Z" fill="currentColor"/> <path d="M185.978 22.361L182.293 18.3745V17.7491H195.882V18.3745L194.04 22.2828L203.176 49.2506L212.159 22.2828L210.316 18.3745L210.393 17.7491H221.295V18.3745L217.687 22.361L204.328 58.3177H198.953L185.978 22.361Z" fill="currentColor"/> <path d="M238.601 17.7491C252.174 17.7491 257.216 27.7377 256.595 37.7261H227.743C227.898 47.4073 233.405 53.0162 240.773 53.0162C246.513 53.0162 250.546 49.8661 252.485 44.2572L256.906 45.4865C255.044 53.7078 248.607 59.1631 239.299 59.1631C227.2 59.1631 219.599 49.8661 219.599 38.4177C219.599 27.0461 226.735 17.7491 238.601 17.7491ZM248.296 33.8844C247.908 27.3535 244.496 21.8212 238.601 21.8212C232.629 21.8212 228.906 27.046 227.976 33.8844H248.296Z" fill="currentColor"/> <path d="M260.297 57.7043L263.011 54.1001V24.5746L260.297 20.6634V20.0498L271.001 18.1325V26.6451C273.017 21.2001 276.973 17.7491 282.17 17.7491C283.178 17.7491 284.109 17.8258 284.885 18.0558L284.342 25.8015C276.353 23.4242 272.319 29.2525 271.001 34.3139V54.023L274.646 57.7043V58.3177H260.297V57.7043Z" fill="currentColor"/> </svg> <span class="chip">Side by side</span></div>
+  <h2 id="h-side">Three installs, three sign-ins</h2>
+  <p class="lede">Each one installs, authenticates and rolls out on its own. A customer can run any one of them without the other two.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col"></th><th scope="col" class="kura">Kura</th><th scope="col">Security Teams MCP</th><th scope="col">Developers MCP</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">How it connects</th><td>A plugin that adds hooks to the coding agent's own lifecycle</td><td>A plugin or a direct MCP server connection</td><td>An MCP server the developer adds to their agent</td></tr>
+        <tr><th scope="row">Sign-in</th><td>One API token scoped to Clover Coding Plugin. It reaches the hook endpoints and nothing else, so it is safe to hand every developer</td><td>OAuth as your own Clover user. An API token lets an unattended agent run against it</td><td>Browser sign-in per developer. Each needs a Clover account under the email they commit with</td></tr>
+        <tr><th scope="row">Agents</th><td>Claude Code, Cursor, Codex, Devin, Kiro</td><td>Claude, Cursor, any MCP client</td><td>Claude Code, Cursor, any MCP client</td></tr>
+        <tr><th scope="row">Rollout</th><td>Organization-wide through Claude managed settings, a Cursor team marketplace or MDM, or per developer</td><td>Per person on the security team</td><td>Per developer</td></tr>
+        <tr><th scope="row">On install</th><td>Visibility mode: silent, the developer notices nothing. An admin moves it to Advisory or Enforcement</td><td>Reads run right away. Writes are proposed and wait for a yes</td><td>Reads run right away. Writes ask the developer first</td></tr>
+        <tr><th scope="row">What the security team gets</th><td>Every plan and requirement, per session, including sessions that ran with no security review behind them</td><td>Answers, reports and actions across the whole program</td><td>Developer responses to findings. Irrelevant or risk accepted waits for security approval</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="section-label">Kura's three enforcement levels</p>
+  <div class="key">
+    <span class="k">Visibility</span><p>Kura observes and reports. Nothing appears in the developer's session.</p>
+    <span class="k">Advisory</span><p>Requirements appear through the coding agent as optional context. Nothing is blocked.</p>
+    <span class="k">Enforcement</span><p>Non-compliant work does not proceed until the requirements are met.</p>
+  </div>
+</section>
+
+<section class="sheet" aria-labelledby="h-pick">
+  <div class="top"> <svg class="logo" viewBox="0 0 285 61" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Clover"> <path d="M31.4017 50.9132C33.331 56.0773 37.6834 60.8531 43.7244 60.8531H61.0468V43.5884C61.0468 37.5665 56.2537 33.2252 51.0732 31.3037C50.7133 31.1705 50.4626 30.8269 50.4626 30.4252C50.4626 30.0355 50.7064 29.6856 51.0732 29.5499C56.2537 27.6284 61.0468 23.287 61.0468 17.2653V0.000465289L43.7244 0.000464535C37.6834 0.000464272 33.331 4.77629 31.4017 9.94025C31.2655 10.306 30.9146 10.5488 30.5236 10.5488C30.1326 10.5488 29.7816 10.306 29.6454 9.94025C27.7161 4.77629 23.3639 0.000463648 17.3227 0.000463384L0.000377876 0.00046263L0.000377119 17.2653C0.000376855 23.287 4.79326 27.6284 9.97394 29.5499C10.3338 29.6831 10.5845 30.0267 10.5845 30.4284C10.5845 30.8181 10.3409 31.1679 9.97394 31.3037C4.79326 33.2252 0.000376229 37.5665 0.000375965 43.5884L0.000375207 60.8531H17.3227C23.3639 60.8531 27.7161 56.0773 29.6454 50.9132C29.7816 50.5475 30.1326 50.3049 30.5236 50.3049C30.9146 50.3049 31.2655 50.5475 31.4017 50.9132ZM25.0288 38.3366L12.9865 49.6531C12.4994 50.1116 11.735 50.1003 11.2623 49.6291C10.788 49.1562 10.7784 48.3961 11.2367 47.9105L22.5899 35.9069C24.0465 34.3688 24.774 32.3978 24.774 30.4268C24.774 28.4558 24.0465 26.4847 22.5899 24.9466L11.2367 12.9431C10.7784 12.4575 10.788 11.6973 11.2623 11.2244C11.735 10.7533 12.4994 10.7421 12.9865 11.2005L25.0288 22.5171C26.572 23.9674 28.5478 24.6926 30.5236 24.6926C32.4994 24.6926 34.4751 23.9674 36.0184 22.5171L48.0606 11.2005C48.5477 10.7421 49.312 10.7533 49.7847 11.2244C50.2591 11.6973 50.2687 12.4575 49.8105 12.9431L38.4572 24.9466C37.0006 26.4847 36.2731 28.4558 36.2731 30.4268C36.2731 32.3978 37.0006 34.3688 38.4572 35.9069L49.8105 47.9105C50.2687 48.3961 50.2591 49.1562 49.7847 49.6291C49.312 50.1003 48.5477 50.1116 48.0606 49.6531L36.0184 38.3366C34.4751 36.8863 32.4994 36.1611 30.5236 36.1611C28.5478 36.1611 26.572 36.8863 25.0288 38.3366Z" fill="currentColor"/> <path d="M76.3085 30.3879C76.3085 11.1528 90.1618 1.69022 104.246 1.69022C115.098 1.69022 122.948 6.65411 126.257 14.1775L120.331 20.0721L119.715 19.9945C118.176 12.7038 112.327 6.57642 104.169 6.57642C93.317 6.57642 85.0823 14.953 85.0823 29.9223C85.0823 44.7363 94.3178 52.6475 104.631 52.6475C113.404 52.6475 119.715 48.1492 122.178 39.0746L127.181 39.8501C125.026 52.2599 115.79 59.1625 104.015 59.1625C89.546 59.1628 76.3085 49.4676 76.3085 30.3879Z" fill="currentColor"/> <path d="M142.443 57.7019V58.3174H129.725V57.7019L132.297 54.0858V8.15313L129.725 4.22929V3.61374L139.869 1.69022V54.0858L142.443 57.7019Z" fill="currentColor"/> <path d="M144.986 38.4177C144.986 26.5851 153.327 17.7491 164.911 17.7491C176.418 17.7491 184.836 26.5851 184.836 38.4177C184.836 50.3271 176.418 59.1631 164.911 59.1631C153.327 59.1631 144.986 50.3271 144.986 38.4177ZM176.572 38.4177C176.572 28.8901 171.629 22.1287 164.911 22.1287C158.114 22.1287 153.327 28.8901 153.327 38.4177C153.327 47.9453 158.114 54.7835 164.911 54.7835C171.629 54.7835 176.572 47.9453 176.572 38.4177Z" fill="currentColor"/> <path d="M185.978 22.361L182.293 18.3745V17.7491H195.882V18.3745L194.04 22.2828L203.176 49.2506L212.159 22.2828L210.316 18.3745L210.393 17.7491H221.295V18.3745L217.687 22.361L204.328 58.3177H198.953L185.978 22.361Z" fill="currentColor"/> <path d="M238.601 17.7491C252.174 17.7491 257.216 27.7377 256.595 37.7261H227.743C227.898 47.4073 233.405 53.0162 240.773 53.0162C246.513 53.0162 250.546 49.8661 252.485 44.2572L256.906 45.4865C255.044 53.7078 248.607 59.1631 239.299 59.1631C227.2 59.1631 219.599 49.8661 219.599 38.4177C219.599 27.0461 226.735 17.7491 238.601 17.7491ZM248.296 33.8844C247.908 27.3535 244.496 21.8212 238.601 21.8212C232.629 21.8212 228.906 27.046 227.976 33.8844H248.296Z" fill="currentColor"/> <path d="M260.297 57.7043L263.011 54.1001V24.5746L260.297 20.6634V20.0498L271.001 18.1325V26.6451C273.017 21.2001 276.973 17.7491 282.17 17.7491C283.178 17.7491 284.109 17.8258 284.885 18.0558L284.342 25.8015C276.353 23.4242 272.319 29.2525 271.001 34.3139V54.023L274.646 57.7043V58.3177H260.297V57.7043Z" fill="currentColor"/> </svg> <span class="chip">Field answers</span></div>
+  <h2 id="h-pick">When the customer says</h2>
+  <p class="lede">Six things customers have said on calls, what to answer, and which doc section to send.</p>
+  <div class="says">
+    <div class="say">
+      <q>We'll route Kura through our MCP gateway.</q>
+      <p>Kura is a plugin that adds hooks to the agent, so it never passes through an MCP gateway. What it needs is network access to api.cloversec.io and auth.cloversec.io. If those are blocked, Kura lets the session continue and does nothing visible.</p>
+      <span class="send">Send: Connecting Kura, Air-gapped install</span>
+    </div>
+    <div class="say">
+      <q>Every new MCP has to go through my team's approval.</q>
+      <p>Kura is not an MCP. Its token carries one scope, Clover Coding Plugin, and reaches the hook endpoints only. In Cursor, the Kura setup also adds a Clover MCP server. Say so up front: it is an empty server with no tools, and its only job is to pass Kura its credentials in an organization-wide install.</p>
+      <span class="send">Send: Connecting Kura, Before you start</span>
+    </div>
+    <div class="say">
+      <q>So every developer has to install the hooks plugin?</q>
+      <p>No. An admin rolls it out once through Claude managed settings, a Cursor team marketplace or MDM, and developers get it on their next session. Per-developer install is for testing or unmanaged machines.</p>
+      <span class="send">Send: Connecting Kura, Organization rollout</span>
+    </div>
+    <div class="say">
+      <q>We connect MCPs with user credentials, never shared ones.</q>
+      <p>That rule fits both MCPs, which sign in as a person. Kura uses one client credential for the hook endpoints. In Claude Code, the dashboard attributes each session to a developer through that developer's own Claude sign-in.</p>
+      <span class="send">Send: Connecting Kura, Troubleshooting</span>
+    </div>
+    <div class="say">
+      <q>I think I have both MCPs going.</q>
+      <p>Ask what they can see. Reviews, applications and reporting across the program means Security Teams. Only reviews of their own changes means Developers.</p>
+      <span class="send">Send: the matching MCP page below</span>
+    </div>
+    <div class="say">
+      <q>Kura is installed and nothing happens.</q>
+      <p>Every connection starts in Visibility mode, which is silent by design. The sessions show up in Clover under Agentic Development, Visibility and Coverage. An admin changes the mode under Settings, When to intervene.</p>
+      <span class="send">Send: About Kura, Enforcement levels</span>
+    </div>
+  </div>
+
+  <div class="band">
+    <span class="label">Setup guides, behind customer login</span>
+    <div class="docs">
+      <a href="https://docs.cloversec.io/product-guides/kura-securing-agentic-development/connecting-kura-to-coding-agents" target="_blank" rel="noopener">Kura<span>Connecting Kura to coding agents</span></a>
+      <a href="https://docs.cloversec.io/integrations/plugins-and-mcps/clover-for-security-teams-beta" target="_blank" rel="noopener">Security Teams MCP<span>Clover for Security Teams</span></a>
+      <a href="https://docs.cloversec.io/product-updates/plugins-and-mcps/clover-for-developers-beta" target="_blank" rel="noopener">Developers MCP<span>Clover for Developers</span></a>
+    </div>
+  </div>
+</section>
+
+</div>

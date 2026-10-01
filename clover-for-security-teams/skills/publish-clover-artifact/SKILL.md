@@ -1,14 +1,14 @@
 ---
 name: publish-clover-artifact
 description: >-
-  Publishes the result of any Clover skill as a shareable artifact styled in the Clover product theme.
+  Publishes the result of any Clover skill as a shareable artifact styled as a Clover page.
   Use as the final step of any skill whose output is worth sharing. Renders what Clover already
   returned; it does not query Clover itself.
 user-invocable: false
 ---
 # Publish Clover Artifact
 
-Turn a Clover answer into a page that looks like it came from Clover.
+Turn a Clover answer into a page that looks like Clover made it, in the same visual system as Clover's one-pagers and field guides: Clover green and sage on daylight grey, Fraunces light headlines with a sage highlight, IBM Plex Mono chips, stacked sheets, and a green gradient closing band.
 
 Clover holds the data and does the analysis. This skill only renders what another skill already received. It adds no findings, no counts, and no interpretation of its own.
 
@@ -20,110 +20,90 @@ Publish when the user asks for a page, a link, or something to share. Otherwise 
 
 ## 2. Build the page
 
-Title: `<Report name> · <subject>`.
+Everything you need is in `assets/`, next to this SKILL.md:
+- `template.html`: every token and component, with placeholder content. The first sheet is the report opening for a Clover answer; the rest are the general components. Start here and delete what the page does not need.
+- `example-kura-and-the-mcps.html`: a finished page built with the same system. Read it to see how the components combine.
+- `clover-logo.svg`: the Clover mark and wordmark, colored through `currentColor`.
 
-Everything below is taken from clover.security's own stylesheet and brand files, so the page reads as Clover's rather than as a generic green report.
+### How to build it
 
-### Brand assets
+1. Copy `assets/template.html`. Keep the `<style>` block as is. Change tokens only, never hard-code a color in a component.
+2. Decide the sheets. One sheet is one printed page. Most reports need one to three: the report opening, then one sheet per large section Clover returned. Each sheet opens with the top row: logo left, one mono chip right naming what the sheet is (`Review summary`, `Top threats`, `Remediation plan`).
+3. Pick components for the content Clover returned, not the other way round (see below).
+4. Write the words the page adds (chips, section labels, headline) against the copy rules below.
+5. The file needs no `<html>`, `<head>` or `<body>` tags. The template is already written that way.
 
-Two SVG files of the **full Clover logo** (the clover mark plus the "Clover" wordmark, 150×32) sit next to this SKILL.md, in the same directory. They are the exact files the website serves. Always use one of them for the page logo. Never use the bare mark alone, never draw the mark by hand, never use an emoji or a different image in its place, and never type the word "Clover" next to the logo: the wordmark is already in the file.
+**Title**: `<title>` is a name of two to four words: the report and its subject, such as `Payments review summary`. Put the longer description in the Artifact tool's `description`.
 
-| File | What it is | Use it when |
+**Tab icon**: pass `icon: "shield"` on the first publish and omit it on a republish. A `<link rel="icon">` inside the HTML has no effect on the tab, so do not add one.
+
+### Logo
+
+The logo is the inline `<svg class="logo">` already in the template's top row, the same paths as `assets/clover-logo.svg`. It takes its color from `--accent`, so it follows both themes by itself. Keep it exactly as it is: no filter, no cropping to the mark, no redrawing, no emoji or other image in its place, and never type the word "Clover" beside it, since the wordmark is already in the SVG. The artifact sandbox loads no external images, so never reference the file by URL.
+
+### Tokens
+
+Official palette, from the Clover Brandbook:
+
+| Token | Light | Role |
 |---|---|---|
-| `clover-logo-dark.svg` | moss-green (`#15291F`) logo on a transparent background | the logo sits on a light surface |
-| `clover-logo-white.svg` | off-white (`#F5F5F4`) logo on a transparent background | the logo sits on a dark surface such as the `--ground` header band |
+| Clover green | `#154336` | Headlines, labels, accent text |
+| Dark green | `#15291f` | Body text; dark-mode sheet |
+| Sage | `#cef1ae` | Headline highlight, filled chips; dark-mode accent |
+| Cream | `#fcf4e1` | Text on the green band; dark-mode text |
+| Daylight | `#f5f5f4` | Sheet background |
 
-The header band is dark, so `clover-logo-white.svg` is the right choice there; `clover-logo-dark.svg` is for light surfaces.
+The page ground behind the sheets is a step darker (`#ecece9`) so sheets read as paper. Dark mode is already defined in the template: dark green sheets, cream text, sage accent. Keep both themes working; the page follows the viewer's setting.
 
-The artifact sandbox loads no external images, so the chosen file must be embedded as a data URI. Read it with:
+**Green and neutral only.** No red, amber or other accent, and no color scale for threat levels, severities or scores. The one gradient is the closing band.
 
-```sh
-base64 -i "<directory of this SKILL.md>/<chosen file>.svg"
-```
+### Type
 
-and place it exactly like this, keeping the 150:32 ratio:
+- **Fraunces**, weight 300, for h1, h2 and stat figures. Light and large. Highlight one phrase in a headline with `<mark>`, which paints sage behind it. On a report, mark the subject's name: `Top threats in <mark>Payments API</mark>`. One `<mark>` per headline, at most.
+- **Public Sans** for everything else. Body 15px, lede 17px.
+- **IBM Plex Mono**, uppercase with letter-spacing, for chips, table headers, `dt` labels and "Doc:" lines. Mixed-case `.mono` for data values that are identifiers: ids, levels, dates, counts inside prose. Mono means "a label or a real product term", never running text.
 
-```html
-<img src="data:image/svg+xml;base64,<output>" alt="Clover" width="150" height="32">
-```
+### Components
 
-Place the SVG exactly as it is: no CSS filter, no recolouring, no cropping to the mark, no redrawing. Wherever else the logo appears, apply the same rule and pick the file by the surface behind it.
+Report components, for rendering a Clover answer:
+- **Report opening** (first sheet of the template): chip with the report name, h1 with the subject, the lede, a `dl.facts` meta row (Application, Scope, Generated), then the stat tiles.
+- **Lede** (`.lede`): Clover's own verdict or status line, copied verbatim. If Clover gave none, omit the lede; never write one.
+- **Stat tiles** (`dl.stats > .stat`): mono label above a Fraunces figure, three to five of them, carrying the totals Clover gave. A set that is absent, such as no threat model on record, gets a tile with `<dd class="none">not on record</dd>` rather than being left out.
+- **Data table** (`.tablewrap > table.data`): threats, requirements, applications, any list Clover returned. Row label in green, levels in `.mono` exactly as Clover gave them, statuses as chips. The wrapper scrolls sideways on phones; the page never does.
+- **Status chip** (`.chip.status`): a rounded capsule. `.chip.fill.status` (sage) for settled states: covered, mitigated, done. Plain `.chip.status` (outlined) for every other state, including Requires Attention, blocked, overdue and awaiting approval. There is no third style.
 
-**Tab icon (favicon)**: the browser tab is controlled by the claude.ai shell around the page, which takes only the emoji `favicon` parameter of the Artifact tool. Pass `🍀` on the first publish and never change it on a republish. A `<link rel="icon">` inside the HTML has no effect on the tab, so do not add one. The official logo appears on the page only.
+General components, from the Clover page design:
+- **Sheet** (`.sheet`): the page. Top row, headline, then content, 32px between blocks.
+- **Section label** (`.section-label`): names a section Clover returned, in Clover's order.
+- **Chip** (`.chip`, `.chip.fill`): outlined for context, filled sage for the thing itself (a product name, a mechanism).
+- **Card** (`.card`): one item the reader compares, such as one application, with a `dl.facts` row of up to three short fields. Never wrap a plain paragraph in a card.
+- **Journey** (`ol.journey`): numbered steps. Use it only when Clover gave a real sequence, such as a remediation plan's ordered actions.
+- **Key list** (`.key`): term in Fraunces, definition beside it. For levels, modes and glossary items Clover defined.
+- **Band** (`.band`): closing gradient strip from Clover green, full bleed to the sheet edges, once per page on the last sheet. It holds the links Clover returned (the review, the application in Clover) and the footer line `Generated from live Clover data · <date>`. If Clover returned no links, the band holds only the footer line.
+- **Says** (`.says`): quoted customer lines. Reports do not use it.
 
-### Fonts
+### Copy rules
 
-The website sets three families: **Season Mix** for headings, **Season Sans** for body and UI text, and **Geist Mono** for tags and data. Season Sans and Season Mix are commercial fonts by Displaay Type Foundry whose licence forbids redistribution, so they are not in this repository. Geist Mono is open (SIL OFL) and on Google Fonts, which the artifact sandbox allows.
+For the words this skill writes itself (chips, section labels, headline, tile labels, band label):
+- No em dashes. Use commas, periods or colons.
+- American English (organization, license, program).
+- Never write "AppSec". Write "security" or "security posture".
+- Never call Clover an "assistant". Say "Clover".
+- Active voice, short. The words the label needs, and no more.
 
-Load the open stand-ins from Google Fonts with this exact tag at the top of the file, before `<style>`:
-
-```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Fraunces:opsz,wght@9..144,400..700&display=swap">
-```
-
-and define the stacks as tokens on `:root`:
-
-| Token | Role on the page | Site font | Stand-in | Full stack |
-|---|---|---|---|---|
-| `--font-display` | `h1`, section headings, the verdict sentence | Season Mix | Fraunces | `"Season Mix", Fraunces, Georgia, serif` |
-| `--font-text` | body copy, labels, table headers, pills | Season Sans | Instrument Sans | `"Season Sans", "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif` |
-| `--font-mono` | every data value: names, statuses, ids, counts, stat figures, tags | Geist Mono | Geist Mono | `"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace` |
-
-The site fonts lead each stack so that the real faces are used wherever they are installed, and the Google Fonts stand-ins render everywhere else. **Optional, licence-holders only**: if `fonts/SeasonSansVF.woff2` and `fonts/SeasonMixVF.woff2` exist next to this SKILL.md, embed each as an `@font-face` with a `data:font/woff2;base64,` source, `font-weight: 300 900`, `font-display: swap`, and the family names `"Season Sans"` and `"Season Mix"`. Do not fetch them from clover.security and do not add them to the repository.
-
-Type rules, copied from the site's utility classes:
-
-- **Headings** (`--font-display`): weight 580 on the site, so use 560 to 600; line-height 1.0; letter-spacing −0.01em. The `h1` in the header band is about 2.75rem, section headings about 1.625rem.
-- **Body** (`--font-text`): 1rem to 1.125rem, weight 400, line-height 1.4, letter-spacing 0.025em. Small labels: 0.8125rem, weight 600 to 650, letter-spacing 0.04em.
-- **Tags and data** (`--font-mono`): 0.75rem, weight 400, uppercase, letter-spacing 0.1em for tag chips, exactly as the site's `.tag`; data values in cards and tables stay mixed-case at 0.875rem to 1rem.
-- Keep the product's signature split: **label in sans, value in monospace**, on every field row and stat tile.
-
-### Palette
-
-Tokens are named after the site's own CSS variables. Define them on `:root`, with the dark counterparts under both `@media (prefers-color-scheme: dark)` guarded as `:root:not([data-theme="light"])` and `:root[data-theme="dark"]`:
-
-| Token | Light | Dark | Site variable |
-|---|---|---|---|
-| `--ground` (header band) | `#15291F` | `#0D1613` | `--primary-moss` / `--black-400` |
-| `--paper` (page) | `#F5F5F4` | `#15291F` | `--daylight` / `--primary-moss` |
-| `--card` | `#FFFFFF` | `#1E3D32` | `--white` |
-| `--ink` | `#15291F` | `#F5F5F4` | `--primary-moss` / `--daylight` |
-| `--muted` | `#828173` | `#C1C0BB` | `--neutral-warm-600` / `--neutral-warm-300` |
-| `--line` | `#EAEAE8` | `#2B4B3B` | `--neutral-warm-100` / `--dep-green` |
-| `--clover` | `#138869` | `#35D8AD` | `--dark-green` / `--light-green` |
-| `--wash` | `#E0F6CB` | `#22493F` | `--grove-green-100` / `--green` |
-| `--on-ground` (text on the header band) | `#F5F5F4` | `#F5F5F4` | `--daylight` |
-| `--on-ground-muted` | `rgba(245, 245, 244, 0.6)` | `rgba(245, 245, 244, 0.6)` | `--daylight` at 60% |
-
-`body` gets an explicit `var(--paper)` background and `var(--ink)` text. Note the neutrals are **warm** (the site's `neutral-warm` scale), not blue-grey: borders, muted labels and the page ground all lean slightly towards sand. That warmth is most of what makes it look like Clover.
-
-**Text on the header band always uses `--on-ground` and `--on-ground-muted`**, never `--paper` or `--ink`: in the dark theme `--paper` is the same moss green as the band and the heading vanishes.
-
-**Green and neutral only.** The page uses no colour outside this table: no gradients, no glows, no hairlines, no red, amber or turquoise accents, and no colour scale for threat levels, severities or scores. Print the level Clover gave in monospace. The one accent is `--clover`, spent on settled status pills and the headline stat figure.
-
-### Shapes
-
-From the site: cards use a 1px `--line` border and a small 4px radius; tag chips a 6px radius; status pills are fully rounded capsules; buttons and links a 4px radius. No drop shadows except the site's one soft `0 10px 15px rgba(21, 41, 31, 0.10)` on the overlapping verdict card.
-
-### Layout
-
-In this order:
-1. **Header band** in `--ground`, full bleed, a plain flat surface with no gradient, glow or bottom hairline, laid out as four stacked rows that all start at the same left edge as the page content below. Never indent the later rows to the logo; the logo is not a gutter column.
-   - **Logo row**: the full Clover logo SVG alone on its own line (`clover-logo-white.svg`, embedded as above, height 32). Nothing else sits on this row: no separator, no report name, no extra "Clover" text, since the wordmark is already in the file.
-   - **Report row**: the report name (`Top Threats`, `Review Summary`, and the like) as a small uppercase label in `--font-mono`, `--on-ground-muted`, letter-spacing 0.1em, like the site's tags.
-   - **Heading row**: the subject (the review, application, or scope name) as the page's `h1`, `--font-display`, large, in `--on-ground`.
-   - **Meta row**: a flex row of label/value pairs in small type, `Application`, `Scope`, `Generated <date>` and the like, label in `--on-ground-muted` `--font-text` and value in `--on-ground` `--font-mono`, separated by horizontal gap only.
-2. **Standing row**: the one-line verdict in a `--card` box that overlaps the bottom edge of the band by a few pixels, set in `--font-display` with a plain `--line` border and no coloured rule, then three to five stat tiles (label in muted sans above, figure in large monospace). Tiles carry the totals Clover gave; a set that is absent, such as no threat model on record, gets a tile reading `not on record` rather than being left out.
-3. **Body**: cards on `--card` with a `--line` border and generous padding (about 1.875rem 2.5rem, as the site's info cards). Field rows read `Label:` in muted sans, value in monospace, exactly as the product does.
-4. **Tables** inside an `overflow-x: auto` container, never letting the page scroll sideways. Header cells in small uppercase mono, like the site's tags.
-5. **Footer**: `Generated from live Clover data · <date>` in muted sans above a plain `--line` rule.
-
-**Status pills**: a rounded capsule, `--wash` background with `--clover` text for settled states (covered, mitigated, done); `--line` background and `--ink` text for every other state, including `Requires Attention`, blocked, overdue and awaiting approval. There is no third pill colour. Never invent a colour scale for threat levels. Print the level Clover gave.
+Text that comes from Clover stays verbatim, even where it breaks these rules. The copy rules never justify rewording a finding.
 
 ## 3. Read the answer
 
 Nothing to read: the content arrives from the calling skill. Copy its figures verbatim: no rounding, no re-ordering by a judgement of importance, no section the source didn't provide. A gap in the source is a gap on the page, written as "not on record".
 
-## 4. Present it
+## 4. Check it
+
+- The page reads correctly at phone width with nothing cut off.
+- Dark mode is legible.
+- No em dashes in the words the skill wrote: search the file for the character.
+- Every figure on the page appears in Clover's answer, and every link is one Clover returned or docs.cloversec.io.
+
+## 5. Present it
 
 Publish, then give the user the link in one line with what's on the page. If they mention Slack or email, offer a short text cut alongside it.

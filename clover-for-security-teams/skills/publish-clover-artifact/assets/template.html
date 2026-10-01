@@ -1,0 +1,259 @@
+<title>PAGE NAME</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --clover-green:#154336; --dark-green:#15291f; --sage:#cef1ae; --cream:#fcf4e1; --daylight:#f5f5f4;
+  --bg:#ecece9; --sheet:#f5f5f4; --panel:#efefec; --text:#15291f; --dim:#4c5d54; --faint:#6f7d75;
+  --accent:#154336; --hl:#cef1ae; --hl-text:#15291f; --rule:rgba(21,41,31,.14); --chip-bg:rgba(206,241,174,.55);
+  --chip-border:rgba(21,67,54,.28); --band-a:#154336; --band-b:#2f6b3f; --band-text:#fcf4e1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#101f18; --sheet:#15291f; --panel:#1b3428; --text:#fcf4e1; --dim:#b3c7b8; --faint:#8fa596;
+    --accent:#cef1ae; --hl:#cef1ae; --hl-text:#15291f; --rule:rgba(206,241,174,.16); --chip-bg:rgba(206,241,174,.12);
+    --chip-border:rgba(206,241,174,.3); --band-a:#0d1c15; --band-b:#23513a; --band-text:#fcf4e1;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#101f18; --sheet:#15291f; --panel:#1b3428; --text:#fcf4e1; --dim:#b3c7b8; --faint:#8fa596;
+  --accent:#cef1ae; --hl:#cef1ae; --hl-text:#15291f; --rule:rgba(206,241,174,.16); --chip-bg:rgba(206,241,174,.12);
+  --chip-border:rgba(206,241,174,.3); --band-a:#0d1c15; --band-b:#23513a; --band-text:#fcf4e1;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Public Sans',system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.55;padding:40px 16px 72px;}
+.stack{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.sheet{background:var(--sheet);border-radius:4px;padding:48px clamp(20px,6vw,56px) 56px;display:flex;flex-direction:column;gap:32px;overflow:hidden}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{width:116px;height:auto;color:var(--accent);flex:none}
+.logo .mark path{fill:currentColor}
+.chip{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--chip-border);border-radius:6px;padding:3px 8px;color:var(--dim);white-space:nowrap}
+.chip.fill{background:var(--chip-bg);color:var(--text)}
+h1,h2{font-family:'Fraunces',Georgia,'Times New Roman',serif;font-optical-sizing:auto;font-weight:300;letter-spacing:-.015em;margin:0;text-wrap:balance;color:var(--accent)}
+h1{font-size:clamp(44px,8vw,76px);line-height:1.02}
+h2{font-size:clamp(30px,5vw,42px);line-height:1.08}
+h1 mark,h2 mark{background:var(--hl);color:var(--hl-text);padding:0 .08em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.lede{font-size:17px;line-height:1.6;color:var(--text);max-width:62ch;margin:0}
+.lede+.lede{margin-top:-18px}
+p{margin:0}
+.cards{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:22px 24px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.card-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card h3{font-size:18px;font-weight:600;margin:0;color:var(--accent)}
+.card .what{font-size:16px;max-width:60ch}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;border-top:1px solid var(--rule);padding-top:14px}
+.facts dt{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+.facts dd{margin:0;font-size:14px;color:var(--dim)}
+.key{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:baseline;border-top:1px solid var(--rule);padding-top:20px}
+.key .k{font-family:'Fraunces',Georgia,serif;font-size:20px;color:var(--accent);font-weight:400}
+.key p{color:var(--dim);max-width:62ch}
+.tablewrap{overflow-x:auto;margin:0 -4px}
+table{width:100%;border-collapse:collapse;min-width:640px;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:14px 12px;border-bottom:1px solid var(--rule)}
+thead th{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:500;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding-top:0}
+thead th.kura{color:var(--accent)}
+tbody th{font-weight:600;color:var(--accent);width:17%;font-size:14px}
+tbody td{color:var(--dim);width:27.6%}
+.section-label{font-size:15px;font-weight:600;color:var(--accent);margin:0 0 -18px;padding-bottom:10px;border-bottom:1px solid var(--rule)}
+.picks{display:flex;flex-direction:column}
+.pick{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:10px 24px;padding:14px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+.pick q{font-size:16px;color:var(--text)}
+.pick q::before{content:'\201C'} .pick q::after{content:'\201D'}
+.pick .ans{display:flex;justify-content:flex-start}
+.qa{display:flex;flex-direction:column;gap:18px}
+.qa div{display:grid;grid-template-columns:minmax(0,1fr);gap:4px}
+.qa h4{margin:0;font-size:16px;font-weight:600;color:var(--accent)}
+.qa p{color:var(--dim);max-width:66ch}
+.band{margin:8px calc(-1*clamp(20px,6vw,56px)) -56px;padding:36px clamp(20px,6vw,56px) 40px;background:linear-gradient(120deg,var(--band-a),var(--band-b));color:var(--band-text);display:flex;flex-direction:column;gap:14px}
+.band .label{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
+.docs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.docs a{color:var(--band-text);text-decoration:none;border:1px solid rgba(252,244,225,.28);border-radius:8px;padding:12px 14px;font-size:14px;display:flex;flex-direction:column;gap:2px}
+.docs a span{font-size:12px;opacity:.7}
+.docs a:hover,.docs a:focus-visible{background:rgba(252,244,225,.1);outline:none}
+.band p{font-size:13px;opacity:.8}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:640px){
+  .facts,.docs{grid-template-columns:minmax(0,1fr)}
+  .pick{grid-template-columns:minmax(0,1fr)}
+  .key{grid-template-columns:minmax(0,1fr);gap:4px}
+  .key p{margin-bottom:10px}
+}
+.says{display:flex;flex-direction:column}
+.say{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:16px 0;border-bottom:1px solid var(--rule)}
+.say q{font-family:'Fraunces',Georgia,serif;font-size:19px;font-weight:400;color:var(--accent)}
+.say q::before{content:'\201C'} .say q::after{content:'\201D'}
+.say p{color:var(--dim);max-width:66ch}
+.send{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.06em;color:var(--faint)}
+.journey{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.step{display:grid;grid-template-columns:44px minmax(0,1fr);gap:16px;padding:22px 0;border-top:1px solid var(--rule)}
+.step:last-child{border-bottom:1px solid var(--rule)}
+.num{font-family:'Fraunces',Georgia,serif;font-size:34px;font-weight:300;line-height:1;color:var(--accent)}
+.step-body{display:flex;flex-direction:column;gap:8px}
+.step-body h3{font-size:18px;font-weight:600;margin:0;color:var(--accent)}
+.step-body p{color:var(--dim);max-width:64ch}
+.note{color:var(--dim);font-size:14px}
+/* REPORT: components for pages that render a Clover answer. Tokens only. */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin:0}
+.stat{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.stat dt{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.stat dd{margin:0;font-family:'Fraunces',Georgia,serif;font-weight:300;font-size:38px;line-height:1;color:var(--accent)}
+.stat dd.none{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.06em;line-height:1.4;color:var(--faint)}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;font-size:.92em}
+.chip.status{border-radius:999px}
+table.data{min-width:560px}
+table.data tbody th,table.data tbody td{width:auto}
+table.data td .chip{display:inline-block}
+.band .foot{font-size:13px;opacity:.8}
+</style>
+<div class="stack">
+
+<!-- REPORT SHEET: the opening sheet of a page that renders a Clover answer.
+     Chip names the report. h1 names the subject. Lede is Clover's verdict, verbatim. -->
+<section class="sheet" aria-labelledby="h-report">
+  <div class="top"><svg class="logo" viewBox="0 0 285 61" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Clover">
+      <path d="M31.4017 50.9132C33.331 56.0773 37.6834 60.8531 43.7244 60.8531H61.0468V43.5884C61.0468 37.5665 56.2537 33.2252 51.0732 31.3037C50.7133 31.1705 50.4626 30.8269 50.4626 30.4252C50.4626 30.0355 50.7064 29.6856 51.0732 29.5499C56.2537 27.6284 61.0468 23.287 61.0468 17.2653V0.000465289L43.7244 0.000464535C37.6834 0.000464272 33.331 4.77629 31.4017 9.94025C31.2655 10.306 30.9146 10.5488 30.5236 10.5488C30.1326 10.5488 29.7816 10.306 29.6454 9.94025C27.7161 4.77629 23.3639 0.000463648 17.3227 0.000463384L0.000377876 0.00046263L0.000377119 17.2653C0.000376855 23.287 4.79326 27.6284 9.97394 29.5499C10.3338 29.6831 10.5845 30.0267 10.5845 30.4284C10.5845 30.8181 10.3409 31.1679 9.97394 31.3037C4.79326 33.2252 0.000376229 37.5665 0.000375965 43.5884L0.000375207 60.8531H17.3227C23.3639 60.8531 27.7161 56.0773 29.6454 50.9132C29.7816 50.5475 30.1326 50.3049 30.5236 50.3049C30.9146 50.3049 31.2655 50.5475 31.4017 50.9132ZM25.0288 38.3366L12.9865 49.6531C12.4994 50.1116 11.735 50.1003 11.2623 49.6291C10.788 49.1562 10.7784 48.3961 11.2367 47.9105L22.5899 35.9069C24.0465 34.3688 24.774 32.3978 24.774 30.4268C24.774 28.4558 24.0465 26.4847 22.5899 24.9466L11.2367 12.9431C10.7784 12.4575 10.788 11.6973 11.2623 11.2244C11.735 10.7533 12.4994 10.7421 12.9865 11.2005L25.0288 22.5171C26.572 23.9674 28.5478 24.6926 30.5236 24.6926C32.4994 24.6926 34.4751 23.9674 36.0184 22.5171L48.0606 11.2005C48.5477 10.7421 49.312 10.7533 49.7847 11.2244C50.2591 11.6973 50.2687 12.4575 49.8105 12.9431L38.4572 24.9466C37.0006 26.4847 36.2731 28.4558 36.2731 30.4268C36.2731 32.3978 37.0006 34.3688 38.4572 35.9069L49.8105 47.9105C50.2687 48.3961 50.2591 49.1562 49.7847 49.6291C49.312 50.1003 48.5477 50.1116 48.0606 49.6531L36.0184 38.3366C34.4751 36.8863 32.4994 36.1611 30.5236 36.1611C28.5478 36.1611 26.572 36.8863 25.0288 38.3366Z" fill="currentColor"/>
+      <path d="M76.3085 30.3879C76.3085 11.1528 90.1618 1.69022 104.246 1.69022C115.098 1.69022 122.948 6.65411 126.257 14.1775L120.331 20.0721L119.715 19.9945C118.176 12.7038 112.327 6.57642 104.169 6.57642C93.317 6.57642 85.0823 14.953 85.0823 29.9223C85.0823 44.7363 94.3178 52.6475 104.631 52.6475C113.404 52.6475 119.715 48.1492 122.178 39.0746L127.181 39.8501C125.026 52.2599 115.79 59.1625 104.015 59.1625C89.546 59.1628 76.3085 49.4676 76.3085 30.3879Z" fill="currentColor"/>
+      <path d="M142.443 57.7019V58.3174H129.725V57.7019L132.297 54.0858V8.15313L129.725 4.22929V3.61374L139.869 1.69022V54.0858L142.443 57.7019Z" fill="currentColor"/>
+      <path d="M144.986 38.4177C144.986 26.5851 153.327 17.7491 164.911 17.7491C176.418 17.7491 184.836 26.5851 184.836 38.4177C184.836 50.3271 176.418 59.1631 164.911 59.1631C153.327 59.1631 144.986 50.3271 144.986 38.4177ZM176.572 38.4177C176.572 28.8901 171.629 22.1287 164.911 22.1287C158.114 22.1287 153.327 28.8901 153.327 38.4177C153.327 47.9453 158.114 54.7835 164.911 54.7835C171.629 54.7835 176.572 47.9453 176.572 38.4177Z" fill="currentColor"/>
+      <path d="M185.978 22.361L182.293 18.3745V17.7491H195.882V18.3745L194.04 22.2828L203.176 49.2506L212.159 22.2828L210.316 18.3745L210.393 17.7491H221.295V18.3745L217.687 22.361L204.328 58.3177H198.953L185.978 22.361Z" fill="currentColor"/>
+      <path d="M238.601 17.7491C252.174 17.7491 257.216 27.7377 256.595 37.7261H227.743C227.898 47.4073 233.405 53.0162 240.773 53.0162C246.513 53.0162 250.546 49.8661 252.485 44.2572L256.906 45.4865C255.044 53.7078 248.607 59.1631 239.299 59.1631C227.2 59.1631 219.599 49.8661 219.599 38.4177C219.599 27.0461 226.735 17.7491 238.601 17.7491ZM248.296 33.8844C247.908 27.3535 244.496 21.8212 238.601 21.8212C232.629 21.8212 228.906 27.046 227.976 33.8844H248.296Z" fill="currentColor"/>
+      <path d="M260.297 57.7043L263.011 54.1001V24.5746L260.297 20.6634V20.0498L271.001 18.1325V26.6451C273.017 21.2001 276.973 17.7491 282.17 17.7491C283.178 17.7491 284.109 17.8258 284.885 18.0558L284.342 25.8015C276.353 23.4242 272.319 29.2525 271.001 34.3139V54.023L274.646 57.7043V58.3177H260.297V57.7043Z" fill="currentColor"/>
+    </svg>
+<span class="chip">REPORT NAME</span></div>
+  <h1 id="h-report">Report name for <mark>subject</mark></h1>
+  <p class="lede">Clover's verdict, copied verbatim.</p>
+  <dl class="facts">
+    <div><dt>Application</dt><dd>Application name</dd></div>
+    <div><dt>Scope</dt><dd>Review, application or organization</dd></div>
+    <div><dt>Generated</dt><dd class="mono">YYYY-MM-DD</dd></div>
+  </dl>
+  <dl class="stats">
+    <div class="stat"><dt>Open threats</dt><dd>0</dd></div>
+    <div class="stat"><dt>Requirements</dt><dd>0</dd></div>
+    <div class="stat"><dt>Threat model</dt><dd class="none">not on record</dd></div>
+  </dl>
+  <p class="section-label">Section Clover returned</p>
+  <div class="tablewrap">
+    <table class="data">
+      <thead><tr><th scope="col">Threat</th><th scope="col">Level</th><th scope="col">Status</th><th scope="col">Consequence</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Threat name</th><td class="mono">Level as Clover gave it</td><td><span class="chip status">Requires Attention</span></td><td>Consequence as Clover gave it.</td></tr>
+        <tr><th scope="row">Threat name</th><td class="mono">Level as Clover gave it</td><td><span class="chip fill status">Mitigated</span></td><td>Consequence as Clover gave it.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SHEET: one per page of the printed one-pager. Top row is always logo left, chip right. -->
+<section class="sheet" aria-labelledby="h-main">
+  <div class="top">    <svg class="logo" viewBox="0 0 285 61" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Clover">
+      <path d="M31.4017 50.9132C33.331 56.0773 37.6834 60.8531 43.7244 60.8531H61.0468V43.5884C61.0468 37.5665 56.2537 33.2252 51.0732 31.3037C50.7133 31.1705 50.4626 30.8269 50.4626 30.4252C50.4626 30.0355 50.7064 29.6856 51.0732 29.5499C56.2537 27.6284 61.0468 23.287 61.0468 17.2653V0.000465289L43.7244 0.000464535C37.6834 0.000464272 33.331 4.77629 31.4017 9.94025C31.2655 10.306 30.9146 10.5488 30.5236 10.5488C30.1326 10.5488 29.7816 10.306 29.6454 9.94025C27.7161 4.77629 23.3639 0.000463648 17.3227 0.000463384L0.000377876 0.00046263L0.000377119 17.2653C0.000376855 23.287 4.79326 27.6284 9.97394 29.5499C10.3338 29.6831 10.5845 30.0267 10.5845 30.4284C10.5845 30.8181 10.3409 31.1679 9.97394 31.3037C4.79326 33.2252 0.000376229 37.5665 0.000375965 43.5884L0.000375207 60.8531H17.3227C23.3639 60.8531 27.7161 56.0773 29.6454 50.9132C29.7816 50.5475 30.1326 50.3049 30.5236 50.3049C30.9146 50.3049 31.2655 50.5475 31.4017 50.9132ZM25.0288 38.3366L12.9865 49.6531C12.4994 50.1116 11.735 50.1003 11.2623 49.6291C10.788 49.1562 10.7784 48.3961 11.2367 47.9105L22.5899 35.9069C24.0465 34.3688 24.774 32.3978 24.774 30.4268C24.774 28.4558 24.0465 26.4847 22.5899 24.9466L11.2367 12.9431C10.7784 12.4575 10.788 11.6973 11.2623 11.2244C11.735 10.7533 12.4994 10.7421 12.9865 11.2005L25.0288 22.5171C26.572 23.9674 28.5478 24.6926 30.5236 24.6926C32.4994 24.6926 34.4751 23.9674 36.0184 22.5171L48.0606 11.2005C48.5477 10.7421 49.312 10.7533 49.7847 11.2244C50.2591 11.6973 50.2687 12.4575 49.8105 12.9431L38.4572 24.9466C37.0006 26.4847 36.2731 28.4558 36.2731 30.4268C36.2731 32.3978 37.0006 34.3688 38.4572 35.9069L49.8105 47.9105C50.2687 48.3961 50.2591 49.1562 49.7847 49.6291C49.312 50.1003 48.5477 50.1116 48.0606 49.6531L36.0184 38.3366C34.4751 36.8863 32.4994 36.1611 30.5236 36.1611C28.5478 36.1611 26.572 36.8863 25.0288 38.3366Z" fill="currentColor"/>
+      <path d="M76.3085 30.3879C76.3085 11.1528 90.1618 1.69022 104.246 1.69022C115.098 1.69022 122.948 6.65411 126.257 14.1775L120.331 20.0721L119.715 19.9945C118.176 12.7038 112.327 6.57642 104.169 6.57642C93.317 6.57642 85.0823 14.953 85.0823 29.9223C85.0823 44.7363 94.3178 52.6475 104.631 52.6475C113.404 52.6475 119.715 48.1492 122.178 39.0746L127.181 39.8501C125.026 52.2599 115.79 59.1625 104.015 59.1625C89.546 59.1628 76.3085 49.4676 76.3085 30.3879Z" fill="currentColor"/>
+      <path d="M142.443 57.7019V58.3174H129.725V57.7019L132.297 54.0858V8.15313L129.725 4.22929V3.61374L139.869 1.69022V54.0858L142.443 57.7019Z" fill="currentColor"/>
+      <path d="M144.986 38.4177C144.986 26.5851 153.327 17.7491 164.911 17.7491C176.418 17.7491 184.836 26.5851 184.836 38.4177C184.836 50.3271 176.418 59.1631 164.911 59.1631C153.327 59.1631 144.986 50.3271 144.986 38.4177ZM176.572 38.4177C176.572 28.8901 171.629 22.1287 164.911 22.1287C158.114 22.1287 153.327 28.8901 153.327 38.4177C153.327 47.9453 158.114 54.7835 164.911 54.7835C171.629 54.7835 176.572 47.9453 176.572 38.4177Z" fill="currentColor"/>
+      <path d="M185.978 22.361L182.293 18.3745V17.7491H195.882V18.3745L194.04 22.2828L203.176 49.2506L212.159 22.2828L210.316 18.3745L210.393 17.7491H221.295V18.3745L217.687 22.361L204.328 58.3177H198.953L185.978 22.361Z" fill="currentColor"/>
+      <path d="M238.601 17.7491C252.174 17.7491 257.216 27.7377 256.595 37.7261H227.743C227.898 47.4073 233.405 53.0162 240.773 53.0162C246.513 53.0162 250.546 49.8661 252.485 44.2572L256.906 45.4865C255.044 53.7078 248.607 59.1631 239.299 59.1631C227.2 59.1631 219.599 49.8661 219.599 38.4177C219.599 27.0461 226.735 17.7491 238.601 17.7491ZM248.296 33.8844C247.908 27.3535 244.496 21.8212 238.601 21.8212C232.629 21.8212 228.906 27.046 227.976 33.8844H248.296Z" fill="currentColor"/>
+      <path d="M260.297 57.7043L263.011 54.1001V24.5746L260.297 20.6634V20.0498L271.001 18.1325V26.6451C273.017 21.2001 276.973 17.7491 282.17 17.7491C283.178 17.7491 284.109 17.8258 284.885 18.0558L284.342 25.8015C276.353 23.4242 272.319 29.2525 271.001 34.3139V54.023L274.646 57.7043V58.3177H260.297V57.7043Z" fill="currentColor"/>
+    </svg>
+<span class="chip">EYEBROW LABEL</span></div>
+  <h1 id="h-main">Headline with <mark>the key phrase</mark></h1>
+  <p class="lede">Lede paragraph. States the answer in plain words, under 60 words.</p>
+
+  <!-- CARDS: one per product or option. Chips name the mechanism and the actor. -->
+  <div class="cards">
+    <article class="card">
+      <div class="card-head"><span class="chip fill">MECHANISM</span><span class="chip">WHO ACTS</span></div>
+      <h3>Card title</h3>
+      <p class="what">One sentence on what it does.</p>
+      <dl class="facts">
+        <div><dt>For</dt><dd>Persona.</dd></div>
+        <div><dt>Starts when</dt><dd>Trigger.</dd></div>
+        <div><dt>Can reach</dt><dd>Scope.</dd></div>
+      </dl>
+    </article>
+  </div>
+</section>
+
+<section class="sheet" aria-labelledby="h-steps">
+  <div class="top">    <svg class="logo" viewBox="0 0 285 61" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Clover">
+      <path d="M31.4017 50.9132C33.331 56.0773 37.6834 60.8531 43.7244 60.8531H61.0468V43.5884C61.0468 37.5665 56.2537 33.2252 51.0732 31.3037C50.7133 31.1705 50.4626 30.8269 50.4626 30.4252C50.4626 30.0355 50.7064 29.6856 51.0732 29.5499C56.2537 27.6284 61.0468 23.287 61.0468 17.2653V0.000465289L43.7244 0.000464535C37.6834 0.000464272 33.331 4.77629 31.4017 9.94025C31.2655 10.306 30.9146 10.5488 30.5236 10.5488C30.1326 10.5488 29.7816 10.306 29.6454 9.94025C27.7161 4.77629 23.3639 0.000463648 17.3227 0.000463384L0.000377876 0.00046263L0.000377119 17.2653C0.000376855 23.287 4.79326 27.6284 9.97394 29.5499C10.3338 29.6831 10.5845 30.0267 10.5845 30.4284C10.5845 30.8181 10.3409 31.1679 9.97394 31.3037C4.79326 33.2252 0.000376229 37.5665 0.000375965 43.5884L0.000375207 60.8531H17.3227C23.3639 60.8531 27.7161 56.0773 29.6454 50.9132C29.7816 50.5475 30.1326 50.3049 30.5236 50.3049C30.9146 50.3049 31.2655 50.5475 31.4017 50.9132ZM25.0288 38.3366L12.9865 49.6531C12.4994 50.1116 11.735 50.1003 11.2623 49.6291C10.788 49.1562 10.7784 48.3961 11.2367 47.9105L22.5899 35.9069C24.0465 34.3688 24.774 32.3978 24.774 30.4268C24.774 28.4558 24.0465 26.4847 22.5899 24.9466L11.2367 12.9431C10.7784 12.4575 10.788 11.6973 11.2623 11.2244C11.735 10.7533 12.4994 10.7421 12.9865 11.2005L25.0288 22.5171C26.572 23.9674 28.5478 24.6926 30.5236 24.6926C32.4994 24.6926 34.4751 23.9674 36.0184 22.5171L48.0606 11.2005C48.5477 10.7421 49.312 10.7533 49.7847 11.2244C50.2591 11.6973 50.2687 12.4575 49.8105 12.9431L38.4572 24.9466C37.0006 26.4847 36.2731 28.4558 36.2731 30.4268C36.2731 32.3978 37.0006 34.3688 38.4572 35.9069L49.8105 47.9105C50.2687 48.3961 50.2591 49.1562 49.7847 49.6291C49.312 50.1003 48.5477 50.1116 48.0606 49.6531L36.0184 38.3366C34.4751 36.8863 32.4994 36.1611 30.5236 36.1611C28.5478 36.1611 26.572 36.8863 25.0288 38.3366Z" fill="currentColor"/>
+      <path d="M76.3085 30.3879C76.3085 11.1528 90.1618 1.69022 104.246 1.69022C115.098 1.69022 122.948 6.65411 126.257 14.1775L120.331 20.0721L119.715 19.9945C118.176 12.7038 112.327 6.57642 104.169 6.57642C93.317 6.57642 85.0823 14.953 85.0823 29.9223C85.0823 44.7363 94.3178 52.6475 104.631 52.6475C113.404 52.6475 119.715 48.1492 122.178 39.0746L127.181 39.8501C125.026 52.2599 115.79 59.1625 104.015 59.1625C89.546 59.1628 76.3085 49.4676 76.3085 30.3879Z" fill="currentColor"/>
+      <path d="M142.443 57.7019V58.3174H129.725V57.7019L132.297 54.0858V8.15313L129.725 4.22929V3.61374L139.869 1.69022V54.0858L142.443 57.7019Z" fill="currentColor"/>
+      <path d="M144.986 38.4177C144.986 26.5851 153.327 17.7491 164.911 17.7491C176.418 17.7491 184.836 26.5851 184.836 38.4177C184.836 50.3271 176.418 59.1631 164.911 59.1631C153.327 59.1631 144.986 50.3271 144.986 38.4177ZM176.572 38.4177C176.572 28.8901 171.629 22.1287 164.911 22.1287C158.114 22.1287 153.327 28.8901 153.327 38.4177C153.327 47.9453 158.114 54.7835 164.911 54.7835C171.629 54.7835 176.572 47.9453 176.572 38.4177Z" fill="currentColor"/>
+      <path d="M185.978 22.361L182.293 18.3745V17.7491H195.882V18.3745L194.04 22.2828L203.176 49.2506L212.159 22.2828L210.316 18.3745L210.393 17.7491H221.295V18.3745L217.687 22.361L204.328 58.3177H198.953L185.978 22.361Z" fill="currentColor"/>
+      <path d="M238.601 17.7491C252.174 17.7491 257.216 27.7377 256.595 37.7261H227.743C227.898 47.4073 233.405 53.0162 240.773 53.0162C246.513 53.0162 250.546 49.8661 252.485 44.2572L256.906 45.4865C255.044 53.7078 248.607 59.1631 239.299 59.1631C227.2 59.1631 219.599 49.8661 219.599 38.4177C219.599 27.0461 226.735 17.7491 238.601 17.7491ZM248.296 33.8844C247.908 27.3535 244.496 21.8212 238.601 21.8212C232.629 21.8212 228.906 27.046 227.976 33.8844H248.296Z" fill="currentColor"/>
+      <path d="M260.297 57.7043L263.011 54.1001V24.5746L260.297 20.6634V20.0498L271.001 18.1325V26.6451C273.017 21.2001 276.973 17.7491 282.17 17.7491C283.178 17.7491 284.109 17.8258 284.885 18.0558L284.342 25.8015C276.353 23.4242 272.319 29.2525 271.001 34.3139V54.023L274.646 57.7043V58.3177H260.297V57.7043Z" fill="currentColor"/>
+    </svg>
+<span class="chip">EYEBROW LABEL</span></div>
+  <h2 id="h-steps">Numbered steps, only for a real sequence</h2>
+  <ol class="journey">
+    <li class="step">
+      <span class="num">1</span>
+      <div class="step-body">
+        <div class="card-head"><span class="chip fill">TOOL</span><span class="chip">WHO, WHERE</span></div>
+        <h3>Step title</h3>
+        <p>What happens in this step.</p>
+        <span class="send">Doc: page name</span>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<section class="sheet" aria-labelledby="h-table">
+  <div class="top">    <svg class="logo" viewBox="0 0 285 61" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Clover">
+      <path d="M31.4017 50.9132C33.331 56.0773 37.6834 60.8531 43.7244 60.8531H61.0468V43.5884C61.0468 37.5665 56.2537 33.2252 51.0732 31.3037C50.7133 31.1705 50.4626 30.8269 50.4626 30.4252C50.4626 30.0355 50.7064 29.6856 51.0732 29.5499C56.2537 27.6284 61.0468 23.287 61.0468 17.2653V0.000465289L43.7244 0.000464535C37.6834 0.000464272 33.331 4.77629 31.4017 9.94025C31.2655 10.306 30.9146 10.5488 30.5236 10.5488C30.1326 10.5488 29.7816 10.306 29.6454 9.94025C27.7161 4.77629 23.3639 0.000463648 17.3227 0.000463384L0.000377876 0.00046263L0.000377119 17.2653C0.000376855 23.287 4.79326 27.6284 9.97394 29.5499C10.3338 29.6831 10.5845 30.0267 10.5845 30.4284C10.5845 30.8181 10.3409 31.1679 9.97394 31.3037C4.79326 33.2252 0.000376229 37.5665 0.000375965 43.5884L0.000375207 60.8531H17.3227C23.3639 60.8531 27.7161 56.0773 29.6454 50.9132C29.7816 50.5475 30.1326 50.3049 30.5236 50.3049C30.9146 50.3049 31.2655 50.5475 31.4017 50.9132ZM25.0288 38.3366L12.9865 49.6531C12.4994 50.1116 11.735 50.1003 11.2623 49.6291C10.788 49.1562 10.7784 48.3961 11.2367 47.9105L22.5899 35.9069C24.0465 34.3688 24.774 32.3978 24.774 30.4268C24.774 28.4558 24.0465 26.4847 22.5899 24.9466L11.2367 12.9431C10.7784 12.4575 10.788 11.6973 11.2623 11.2244C11.735 10.7533 12.4994 10.7421 12.9865 11.2005L25.0288 22.5171C26.572 23.9674 28.5478 24.6926 30.5236 24.6926C32.4994 24.6926 34.4751 23.9674 36.0184 22.5171L48.0606 11.2005C48.5477 10.7421 49.312 10.7533 49.7847 11.2244C50.2591 11.6973 50.2687 12.4575 49.8105 12.9431L38.4572 24.9466C37.0006 26.4847 36.2731 28.4558 36.2731 30.4268C36.2731 32.3978 37.0006 34.3688 38.4572 35.9069L49.8105 47.9105C50.2687 48.3961 50.2591 49.1562 49.7847 49.6291C49.312 50.1003 48.5477 50.1116 48.0606 49.6531L36.0184 38.3366C34.4751 36.8863 32.4994 36.1611 30.5236 36.1611C28.5478 36.1611 26.572 36.8863 25.0288 38.3366Z" fill="currentColor"/>
+      <path d="M76.3085 30.3879C76.3085 11.1528 90.1618 1.69022 104.246 1.69022C115.098 1.69022 122.948 6.65411 126.257 14.1775L120.331 20.0721L119.715 19.9945C118.176 12.7038 112.327 6.57642 104.169 6.57642C93.317 6.57642 85.0823 14.953 85.0823 29.9223C85.0823 44.7363 94.3178 52.6475 104.631 52.6475C113.404 52.6475 119.715 48.1492 122.178 39.0746L127.181 39.8501C125.026 52.2599 115.79 59.1625 104.015 59.1625C89.546 59.1628 76.3085 49.4676 76.3085 30.3879Z" fill="currentColor"/>
+      <path d="M142.443 57.7019V58.3174H129.725V57.7019L132.297 54.0858V8.15313L129.725 4.22929V3.61374L139.869 1.69022V54.0858L142.443 57.7019Z" fill="currentColor"/>
+      <path d="M144.986 38.4177C144.986 26.5851 153.327 17.7491 164.911 17.7491C176.418 17.7491 184.836 26.5851 184.836 38.4177C184.836 50.3271 176.418 59.1631 164.911 59.1631C153.327 59.1631 144.986 50.3271 144.986 38.4177ZM176.572 38.4177C176.572 28.8901 171.629 22.1287 164.911 22.1287C158.114 22.1287 153.327 28.8901 153.327 38.4177C153.327 47.9453 158.114 54.7835 164.911 54.7835C171.629 54.7835 176.572 47.9453 176.572 38.4177Z" fill="currentColor"/>
+      <path d="M185.978 22.361L182.293 18.3745V17.7491H195.882V18.3745L194.04 22.2828L203.176 49.2506L212.159 22.2828L210.316 18.3745L210.393 17.7491H221.295V18.3745L217.687 22.361L204.328 58.3177H198.953L185.978 22.361Z" fill="currentColor"/>
+      <path d="M238.601 17.7491C252.174 17.7491 257.216 27.7377 256.595 37.7261H227.743C227.898 47.4073 233.405 53.0162 240.773 53.0162C246.513 53.0162 250.546 49.8661 252.485 44.2572L256.906 45.4865C255.044 53.7078 248.607 59.1631 239.299 59.1631C227.2 59.1631 219.599 49.8661 219.599 38.4177C219.599 27.0461 226.735 17.7491 238.601 17.7491ZM248.296 33.8844C247.908 27.3535 244.496 21.8212 238.601 21.8212C232.629 21.8212 228.906 27.046 227.976 33.8844H248.296Z" fill="currentColor"/>
+      <path d="M260.297 57.7043L263.011 54.1001V24.5746L260.297 20.6634V20.0498L271.001 18.1325V26.6451C273.017 21.2001 276.973 17.7491 282.17 17.7491C283.178 17.7491 284.109 17.8258 284.885 18.0558L284.342 25.8015C276.353 23.4242 272.319 29.2525 271.001 34.3139V54.023L274.646 57.7043V58.3177H260.297V57.7043Z" fill="currentColor"/>
+    </svg>
+<span class="chip">EYEBROW LABEL</span></div>
+  <h2 id="h-table">Comparison table</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th scope="col"></th><th scope="col" class="kura">Highlighted column</th><th scope="col">Column B</th><th scope="col">Column C</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Row label</th><td>Cell</td><td>Cell</td><td>Cell</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="section-label">Definition list</p>
+  <div class="key">
+    <span class="k">Term</span><p>Definition.</p>
+  </div>
+</section>
+
+<section class="sheet" aria-labelledby="h-says">
+  <div class="top">    <svg class="logo" viewBox="0 0 285 61" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Clover">
+      <path d="M31.4017 50.9132C33.331 56.0773 37.6834 60.8531 43.7244 60.8531H61.0468V43.5884C61.0468 37.5665 56.2537 33.2252 51.0732 31.3037C50.7133 31.1705 50.4626 30.8269 50.4626 30.4252C50.4626 30.0355 50.7064 29.6856 51.0732 29.5499C56.2537 27.6284 61.0468 23.287 61.0468 17.2653V0.000465289L43.7244 0.000464535C37.6834 0.000464272 33.331 4.77629 31.4017 9.94025C31.2655 10.306 30.9146 10.5488 30.5236 10.5488C30.1326 10.5488 29.7816 10.306 29.6454 9.94025C27.7161 4.77629 23.3639 0.000463648 17.3227 0.000463384L0.000377876 0.00046263L0.000377119 17.2653C0.000376855 23.287 4.79326 27.6284 9.97394 29.5499C10.3338 29.6831 10.5845 30.0267 10.5845 30.4284C10.5845 30.8181 10.3409 31.1679 9.97394 31.3037C4.79326 33.2252 0.000376229 37.5665 0.000375965 43.5884L0.000375207 60.8531H17.3227C23.3639 60.8531 27.7161 56.0773 29.6454 50.9132C29.7816 50.5475 30.1326 50.3049 30.5236 50.3049C30.9146 50.3049 31.2655 50.5475 31.4017 50.9132ZM25.0288 38.3366L12.9865 49.6531C12.4994 50.1116 11.735 50.1003 11.2623 49.6291C10.788 49.1562 10.7784 48.3961 11.2367 47.9105L22.5899 35.9069C24.0465 34.3688 24.774 32.3978 24.774 30.4268C24.774 28.4558 24.0465 26.4847 22.5899 24.9466L11.2367 12.9431C10.7784 12.4575 10.788 11.6973 11.2623 11.2244C11.735 10.7533 12.4994 10.7421 12.9865 11.2005L25.0288 22.5171C26.572 23.9674 28.5478 24.6926 30.5236 24.6926C32.4994 24.6926 34.4751 23.9674 36.0184 22.5171L48.0606 11.2005C48.5477 10.7421 49.312 10.7533 49.7847 11.2244C50.2591 11.6973 50.2687 12.4575 49.8105 12.9431L38.4572 24.9466C37.0006 26.4847 36.2731 28.4558 36.2731 30.4268C36.2731 32.3978 37.0006 34.3688 38.4572 35.9069L49.8105 47.9105C50.2687 48.3961 50.2591 49.1562 49.7847 49.6291C49.312 50.1003 48.5477 50.1116 48.0606 49.6531L36.0184 38.3366C34.4751 36.8863 32.4994 36.1611 30.5236 36.1611C28.5478 36.1611 26.572 36.8863 25.0288 38.3366Z" fill="currentColor"/>
+      <path d="M76.3085 30.3879C76.3085 11.1528 90.1618 1.69022 104.246 1.69022C115.098 1.69022 122.948 6.65411 126.257 14.1775L120.331 20.0721L119.715 19.9945C118.176 12.7038 112.327 6.57642 104.169 6.57642C93.317 6.57642 85.0823 14.953 85.0823 29.9223C85.0823 44.7363 94.3178 52.6475 104.631 52.6475C113.404 52.6475 119.715 48.1492 122.178 39.0746L127.181 39.8501C125.026 52.2599 115.79 59.1625 104.015 59.1625C89.546 59.1628 76.3085 49.4676 76.3085 30.3879Z" fill="currentColor"/>
+      <path d="M142.443 57.7019V58.3174H129.725V57.7019L132.297 54.0858V8.15313L129.725 4.22929V3.61374L139.869 1.69022V54.0858L142.443 57.7019Z" fill="currentColor"/>
+      <path d="M144.986 38.4177C144.986 26.5851 153.327 17.7491 164.911 17.7491C176.418 17.7491 184.836 26.5851 184.836 38.4177C184.836 50.3271 176.418 59.1631 164.911 59.1631C153.327 59.1631 144.986 50.3271 144.986 38.4177ZM176.572 38.4177C176.572 28.8901 171.629 22.1287 164.911 22.1287C158.114 22.1287 153.327 28.8901 153.327 38.4177C153.327 47.9453 158.114 54.7835 164.911 54.7835C171.629 54.7835 176.572 47.9453 176.572 38.4177Z" fill="currentColor"/>
+      <path d="M185.978 22.361L182.293 18.3745V17.7491H195.882V18.3745L194.04 22.2828L203.176 49.2506L212.159 22.2828L210.316 18.3745L210.393 17.7491H221.295V18.3745L217.687 22.361L204.328 58.3177H198.953L185.978 22.361Z" fill="currentColor"/>
+      <path d="M238.601 17.7491C252.174 17.7491 257.216 27.7377 256.595 37.7261H227.743C227.898 47.4073 233.405 53.0162 240.773 53.0162C246.513 53.0162 250.546 49.8661 252.485 44.2572L256.906 45.4865C255.044 53.7078 248.607 59.1631 239.299 59.1631C227.2 59.1631 219.599 49.8661 219.599 38.4177C219.599 27.0461 226.735 17.7491 238.601 17.7491ZM248.296 33.8844C247.908 27.3535 244.496 21.8212 238.601 21.8212C232.629 21.8212 228.906 27.046 227.976 33.8844H248.296Z" fill="currentColor"/>
+      <path d="M260.297 57.7043L263.011 54.1001V24.5746L260.297 20.6634V20.0498L271.001 18.1325V26.6451C273.017 21.2001 276.973 17.7491 282.17 17.7491C283.178 17.7491 284.109 17.8258 284.885 18.0558L284.342 25.8015C276.353 23.4242 272.319 29.2525 271.001 34.3139V54.023L274.646 57.7043V58.3177H260.297V57.7043Z" fill="currentColor"/>
+    </svg>
+<span class="chip">EYEBROW LABEL</span></div>
+  <h2 id="h-says">Quoted objections or questions</h2>
+  <div class="says">
+    <div class="say">
+      <q>What the customer said.</q>
+      <p>What to answer.</p>
+      <span class="send">Send: doc page, section</span>
+    </div>
+  </div>
+  <!-- BAND: closing gradient strip, bleeds to the sheet edges. Links or a single CTA line. -->
+  <div class="band">
+    <span class="label">Band label</span>
+    <div class="docs">
+      <a href="https://docs.cloversec.io/" target="_blank" rel="noopener">Link title<span>Subtitle</span></a>
+    </div>
+    <p class="foot">Generated from live Clover data · YYYY-MM-DD</p>
+  </div>
+</section>
+
+</div>

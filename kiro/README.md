@@ -151,8 +151,13 @@ workspace trust; see *Troubleshooting*.
 in the chat, and a fresh line in the hook log:
 
 ```bash
-tail -5 ~/.kiro/clover/.clover-hook.log     # or <repo>/.kiro/clover/... for a repo install
+tail -5 ~/.kiro/clover/.clover-hook.log     # machine-wide install
+tail -5 "$(ls -t ~/.kiro/clover-state/*/.clover-hook.log | head -1)"   # repository install
 ```
+
+A repository install never keeps state inside the repository: its token cache,
+log and review state live in `~/.kiro/clover-state/<install hash>/`, one
+directory per install, so nothing Clover writes at runtime can be committed.
 
 **3. A spec gets reviewed.** Ask Kiro for something with obvious security
 surface, so the review has something to find:

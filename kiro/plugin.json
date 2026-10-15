@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "clover-security",
   "displayName": "Clover Security",
-  "version": "0.1.103",
+  "version": "0.1.104",
   "description": "Clover reviews every spec before implementation starts, hands back the security requirements it is missing, and blocks the task until they are covered.",
   "author": {
     "name": "Clover Security",

@@ -1,0 +1,14 @@
+{
+  "name": "clover",
+  "version": "0.1.106",
+  "description": "Protect your coding agent experience — Clover silently threat-models every plan, surfaces missing security requirements, and folds them in before code is written.",
+  "author": {
+    "name": "Clover Security",
+    "email": "roy@clover.security"
+  },
+  "homepage": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
+  "repository": "https://github.com/clover-security-public/agentic-security-marketplace",
+  "license": "AGPL-3.0-only",
+  "category": "security",
+  "hooks": "copilot/hooks/hooks.json"
+}

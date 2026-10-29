@@ -167,6 +167,15 @@ jobs:
               jq --arg v "$v" '.version = $v'          .codex-plugin/plugin.json       > tmp.json && mv tmp.json .codex-plugin/plugin.json
               git add .codex-plugin/plugin.json
             fi
+            # Copilot's pair: it reads these ahead of .claude-plugin/, and
+            # copilot-check-update compares the installed .claude-plugin version
+            # against the channel's, so a stale number here shows Copilot users
+            # an old version in `copilot plugin list`.
+            if [ -f .plugin/plugin.json ]; then
+              jq --arg v "$v" '.version = $v'          .plugin/plugin.json             > tmp.json && mv tmp.json .plugin/plugin.json
+              jq --arg v "$v" '(.plugins[] | select(.name == "clover" or .name == "clover-local") | .version) = $v' .plugin/marketplace.json > tmp.json && mv tmp.json .plugin/marketplace.json
+              git add .plugin/plugin.json .plugin/marketplace.json
+            fi
           }
 
           set_subplugin_version() {
@@ -202,7 +211,10 @@ jobs:
           # all, so while they were missing a Codex-only change produced no bump,
           # no tag and no release — it reached the marketplace repo but never a
           # Codex user, since codex-check-update only sees released versions.
-          CLOVER_PATHS=(claude cursor codex bin .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json)
+          # copilot/ and .plugin/ are Copilot's tree and manifests; .plugin's
+          # marketplace.json lists only clover, so unlike the shared ones it
+          # belongs here.
+          CLOVER_PATHS=(claude cursor codex copilot bin .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json .plugin)
           CLOVER_V=$(jq -r '.version' .claude-plugin/plugin.json)
           CLOVER_RELEASE=false
           if [ "$IS_BETA" = true ]; then

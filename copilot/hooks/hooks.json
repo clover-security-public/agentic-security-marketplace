@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "bash \"${COPILOT_PLUGIN_ROOT}/copilot/scripts/run-hook.sh\" setup",
+        "powershell": "& \"$env:COPILOT_PLUGIN_ROOT\\copilot\\scripts\\clover-hook.cmd\" setup; exit 0",
+        "timeoutSec": 60
+      },
+      {
+        "type": "command",
+        "bash": "bash \"${COPILOT_PLUGIN_ROOT}/copilot/scripts/run-hook.sh\" check-update",
+        "powershell": "& \"$env:COPILOT_PLUGIN_ROOT\\copilot\\scripts\\clover-hook.cmd\" check-update; exit 0",
+        "timeoutSec": 30
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "bash \"${COPILOT_PLUGIN_ROOT}/copilot/scripts/run-hook.sh\" log-prompt",
+        "powershell": "& \"$env:COPILOT_PLUGIN_ROOT\\copilot\\scripts\\clover-hook.cmd\" log-prompt; exit 0",
+        "timeoutSec": 20
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "matcher": "^exit_plan_mode$",
+        "bash": "bash \"${COPILOT_PLUGIN_ROOT}/copilot/scripts/run-hook.sh\" review-plan",
+        "powershell": "& \"$env:COPILOT_PLUGIN_ROOT\\copilot\\scripts\\clover-hook.cmd\" review-plan; exit 0",
+        "timeoutSec": 300
+      },
+      {
+        "type": "command",
+        "matcher": "^(create|edit|apply_patch)$",
+        "bash": "bash \"${COPILOT_PLUGIN_ROOT}/copilot/scripts/run-hook.sh\" should-review-plan",
+        "powershell": "& \"$env:COPILOT_PLUGIN_ROOT\\copilot\\scripts\\clover-hook.cmd\" should-review-plan; exit 0",
+        "timeoutSec": 300
+      }
+    ]
+  }
+}

@@ -45,6 +45,7 @@ rem to the binary's Cursor-native equivalents.
 set "SUB=cursor-review-plan-stop"
 if /I "%~1"=="setup" set "SUB=cursor-setup"
 if /I "%~1"=="log-prompt" set "SUB=cursor-log-prompt"
+if /I "%~1"=="track-plan-write" set "SUB=cursor-track-plan-write"
 
 "%BIN%" %SUB%
 exit /b %ERRORLEVEL%

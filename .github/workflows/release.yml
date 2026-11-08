@@ -176,6 +176,15 @@ jobs:
               jq --arg v "$v" '(.plugins[] | select(.name == "clover" or .name == "clover-local") | .version) = $v' .plugin/marketplace.json > tmp.json && mv tmp.json .plugin/marketplace.json
               git add .plugin/plugin.json .plugin/marketplace.json
             fi
+            # The Kiro power's manifest: the version Kiro shows for the
+            # installed power. carry-forward-versions.sh stamps it on every
+            # delivery, so it must move with every clover release: one left
+            # behind makes each delivery commit a fix to it, which fires
+            # another Release run.
+            if [ -f kiro/plugin.json ]; then
+              jq --arg v "$v" '.version = $v'          kiro/plugin.json                > tmp.json && mv tmp.json kiro/plugin.json
+              git add kiro/plugin.json
+            fi
           }
 
           set_subplugin_version() {
@@ -185,6 +194,14 @@ jobs:
             jq --arg v "$v" --arg n "$claude_name" '(.plugins[] | select(.name == $n) | .version) = $v' .claude-plugin/marketplace.json > tmp.json && mv tmp.json .claude-plugin/marketplace.json
             jq --arg v "$v" --arg n "$cursor_name" '(.plugins[] | select(.name == $n) | .version) = $v' .cursor-plugin/marketplace.json > tmp.json && mv tmp.json .cursor-plugin/marketplace.json
             git add "$dir/.claude-plugin/plugin.json" "$dir/.cursor-plugin/plugin.json" .claude-plugin/marketplace.json .cursor-plugin/marketplace.json
+            # Codex installs from this manifest and caches by its version, so a
+            # bump that misses it leaves Codex users on the old content. Guarded
+            # like set_clover_version's, for a tree promoted before the plugin
+            # carried one.
+            if [ -f "$dir/.codex-plugin/plugin.json" ]; then
+              jq --arg v "$v" '.version = $v' "$dir/.codex-plugin/plugin.json" > tmp.json && mv tmp.json "$dir/.codex-plugin/plugin.json"
+              git add "$dir/.codex-plugin/plugin.json"
+            fi
           }
 
           BUMPED=false
@@ -201,20 +218,25 @@ jobs:
           #   unchanged               -> skip.
 
           # ---- clover (main) -------------------------------------------------
-          # Everything clover ships across Claude + Cursor + Codex. Both shared
-          # marketplace manifests are excluded so an edit to another plugin's
-          # entry in either one can't trigger a clover release; clover's own
-          # entries are kept in lockstep by the bump below.
+          # Everything clover ships, for every agent. This list decides whether
+          # a release is cut at all, and every agent's update check sees only a
+          # released version, so a path missing here never reaches an install.
+          # The repository root IS the clover plugin, so the list is the whole
+          # tree minus what belongs to someone else or ships to nobody, never a
+          # list of agent trees: a tree added for the next agent ships from its
+          # first commit.
           #
-          # codex/ and .codex-plugin/plugin.json belong here for the same reason
-          # claude/ and cursor/ do: this list decides whether a release is cut at
-          # all, so while they were missing a Codex-only change produced no bump,
-          # no tag and no release — it reached the marketplace repo but never a
-          # Codex user, since codex-check-update only sees released versions.
-          # copilot/ and .plugin/ are Copilot's tree and manifests; .plugin's
+          # Excluded: the two secondary plugins (released below), the two
+          # shared marketplace manifests (an edit to another plugin's entry must
+          # not release clover; clover's own entries are kept in lockstep by the
+          # bump below), CI and tests, and the root docs. .plugin/'s
           # marketplace.json lists only clover, so unlike the shared ones it
-          # belongs here.
-          CLOVER_PATHS=(claude cursor codex copilot bin .claude-plugin/plugin.json .cursor-plugin/plugin.json .codex-plugin/plugin.json .plugin)
+          # stays in.
+          CLOVER_PATHS=(.
+            ':(exclude)clover-for-security-teams' ':(exclude)clover-for-developers'
+            ':(exclude).claude-plugin/marketplace.json' ':(exclude).cursor-plugin/marketplace.json'
+            ':(exclude).github' ':(exclude)tests'
+            ':(exclude)README.md' ':(exclude)USAGE.md' ':(exclude)LICENSE')
           CLOVER_V=$(jq -r '.version' .claude-plugin/plugin.json)
           CLOVER_RELEASE=false
           if [ "$IS_BETA" = true ]; then

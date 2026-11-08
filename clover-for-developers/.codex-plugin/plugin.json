@@ -1,0 +1,33 @@
+{
+  "name": "clover-for-developers",
+  "version": "0.1.6",
+  "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design document (a link to it), and read back the reviews you have access to — answered in natural language, right inside your coding agent.",
+  "author": {
+    "name": "Clover Security"
+  },
+  "keywords": [
+    "security",
+    "appsec",
+    "security-review",
+    "threat-modeling",
+    "clover"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./codex-mcp.json",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "displayName": "Clover Security MCP - Developers",
+    "shortDescription": "Security reviews for your change",
+    "longDescription": "Kick off a Clover security review on the change you are working on, get security feedback on a design document, and read back the reviews you have access to, answered in natural language inside Codex.",
+    "developerName": "Clover Security",
+    "category": "Security",
+    "capabilities": [
+      "Security reviews for your change",
+      "Review status and findings"
+    ],
+    "defaultPrompt": [
+      "Ask Clover to run a security review on the change I am working on."
+    ],
+    "websiteURL": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents"
+  }
+}

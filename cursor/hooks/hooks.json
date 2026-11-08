@@ -11,6 +11,21 @@
         "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" log-prompt"
       }
     ],
+    "afterFileEdit": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" track-plan-write"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" track-plan-write"
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" track-plan-write"
+      }
+    ],
     "stop": [
       {
         "command": "\"${CURSOR_PLUGIN_ROOT}/cursor/scripts/clover-hook.cmd\" review-plan-stop",

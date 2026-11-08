@@ -97,7 +97,7 @@ stage_runtime() {
   obtain "bin/checksums.sha256" "$STAGE/checksums.sha256"
   obtain "bin/$BINARY_NAME" "$STAGE/bin/clover-hook"
 
-  EXPECTED="$(awk -v name="$BINARY_NAME" '{ file=$2; sub(/^\*/, "", file); if (file == name) print $1 }' "$STAGE/checksums.sha256" | head -1)"
+  EXPECTED="$(awk -v name="$BINARY_NAME" '{ file=$2; sub(/\r$/, "", file); sub(/^\*/, "", file); if (file == name) print $1 }' "$STAGE/checksums.sha256" | head -1)"
   [ -n "$EXPECTED" ] || { printf 'clover: %s is missing from checksums.sha256\n' "$BINARY_NAME" >&2; exit 1; }
   ACTUAL="$(sha256_of "$STAGE/bin/clover-hook")"
   [ "$EXPECTED" = "$ACTUAL" ] || { printf 'clover: checksum mismatch for %s\n' "$BINARY_NAME" >&2; exit 1; }

@@ -13,11 +13,13 @@ jobs:
       - name: Validate plugin manifests
         run: |
           for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json \
-                          .codex-plugin/plugin.json .plugin/plugin.json \
+                          .codex-plugin/plugin.json .plugin/plugin.json kiro/plugin.json \
                           clover-for-security-teams/.claude-plugin/plugin.json \
                           clover-for-security-teams/.cursor-plugin/plugin.json \
+                          clover-for-security-teams/.codex-plugin/plugin.json \
                           clover-for-developers/.claude-plugin/plugin.json \
-                          clover-for-developers/.cursor-plugin/plugin.json; do
+                          clover-for-developers/.cursor-plugin/plugin.json \
+                          clover-for-developers/.codex-plugin/plugin.json; do
             echo "Checking $manifest..."
             jq empty "$manifest"
             NAME=$(jq -r '.name' "$manifest")
@@ -43,34 +45,40 @@ jobs:
           CODEX_PLUGIN=$(jq -r '.version' .codex-plugin/plugin.json)
           COPILOT_PLUGIN=$(jq -r '.version' .plugin/plugin.json)
           COPILOT_MARKET=$(jq -r '.plugins[0].version' .plugin/marketplace.json)
-          echo "claude/plugin=$CLAUDE_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/plugin=$CURSOR_PLUGIN cursor/marketplace=$CURSOR_MARKET codex/plugin=$CODEX_PLUGIN copilot/plugin=$COPILOT_PLUGIN copilot/marketplace=$COPILOT_MARKET"
+          KIRO_PLUGIN=$(jq -r '.version' kiro/plugin.json)
+          echo "claude/plugin=$CLAUDE_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/plugin=$CURSOR_PLUGIN cursor/marketplace=$CURSOR_MARKET codex/plugin=$CODEX_PLUGIN copilot/plugin=$COPILOT_PLUGIN copilot/marketplace=$COPILOT_MARKET kiro/plugin=$KIRO_PLUGIN"
           if [ "$CLAUDE_PLUGIN" = "$CLAUDE_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$CURSOR_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$CODEX_PLUGIN" ] \
-             && [ "$CLAUDE_PLUGIN" = "$COPILOT_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$COPILOT_MARKET" ]; then
+             && [ "$CLAUDE_PLUGIN" = "$COPILOT_PLUGIN" ] && [ "$CLAUDE_PLUGIN" = "$COPILOT_MARKET" ] && [ "$CLAUDE_PLUGIN" = "$KIRO_PLUGIN" ]; then
             echo "Versions in sync: $CLAUDE_PLUGIN"
           else
-            echo "ERROR: plugin/marketplace versions are out of sync — all seven manifests must match" >&2
+            # .devin-plugin/plugin.json is deliberately absent: its version is
+            # display-only and unstamped (see devin/README.md).
+            echo "ERROR: plugin/marketplace versions are out of sync — all eight manifests must match" >&2
             exit 1
           fi
 
       # clover-for-security-teams and clover-for-developers are each versioned
-      # independently of clover, but each one's four version locations — its
-      # Claude and Cursor manifests plus its entry in both marketplaces — must
-      # agree.
+      # independently of clover, but each one's five version locations — its
+      # Claude, Cursor and Codex manifests plus its entry in both marketplaces —
+      # must agree. Codex lists the plugin from the Claude marketplace entry but
+      # installs, and check-update.sh compares, the .codex-plugin version.
       - name: Check secondary plugin versions are in sync
         run: |
           for plugin in clover-for-security-teams clover-for-developers; do
             CLAUDE_PLUGIN=$(jq -r '.version' "$plugin/.claude-plugin/plugin.json")
             CURSOR_PLUGIN=$(jq -r '.version' "$plugin/.cursor-plugin/plugin.json")
+            CODEX_PLUGIN=$(jq -r '.version' "$plugin/.codex-plugin/plugin.json")
             CLAUDE_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .claude-plugin/marketplace.json)
             CURSOR_MARKET=$(jq -r --arg name "$plugin" '.plugins[] | select(.name == $name) | .version' .cursor-plugin/marketplace.json)
-            echo "$plugin: claude/plugin=$CLAUDE_PLUGIN cursor/plugin=$CURSOR_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/marketplace=$CURSOR_MARKET"
+            echo "$plugin: claude/plugin=$CLAUDE_PLUGIN cursor/plugin=$CURSOR_PLUGIN codex/plugin=$CODEX_PLUGIN claude/marketplace=$CLAUDE_MARKET cursor/marketplace=$CURSOR_MARKET"
             if [ -n "$CLAUDE_PLUGIN" ] \
               && [ "$CLAUDE_PLUGIN" = "$CURSOR_PLUGIN" ] \
+              && [ "$CLAUDE_PLUGIN" = "$CODEX_PLUGIN" ] \
               && [ "$CLAUDE_PLUGIN" = "$CLAUDE_MARKET" ] \
               && [ "$CLAUDE_PLUGIN" = "$CURSOR_MARKET" ]; then
               echo "$plugin versions in sync: $CLAUDE_PLUGIN"
             else
-              echo "ERROR: $plugin version is out of sync — its Claude/Cursor manifests and both marketplace entries must match" >&2
+              echo "ERROR: $plugin version is out of sync — its Claude/Cursor/Codex manifests and both marketplace entries must match" >&2
               exit 1
             fi
           done
@@ -234,7 +242,7 @@ jobs:
 
       - name: Validate hooks manifests
         run: |
-          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json codex/hooks/hooks.json copilot/hooks/hooks.json clover-for-security-teams/hooks/hooks.json clover-for-developers/hooks/hooks.json; do
+          for manifest in claude/hooks/hooks.json cursor/hooks/hooks.json codex/hooks/hooks.json copilot/hooks/hooks.json clover-for-security-teams/hooks/hooks.json clover-for-developers/hooks/hooks.json clover-for-security-teams/hooks/codex-hooks.json clover-for-developers/hooks/codex-hooks.json; do
             echo "Checking $manifest..."
             jq empty "$manifest"
             echo "Valid"

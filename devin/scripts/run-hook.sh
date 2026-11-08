@@ -14,7 +14,7 @@
 #
 # Subcommands (wired in hooks.json / hooks.v1.json):
 #   log-prompt    UserPromptSubmit          -> audit the prompt to the server
-#   review-write  PreToolUse(write|edit)    -> plan gate on .md writes
+#   review-write  PreToolUse(write|edit|apply_patch) -> plan gate on .md writes
 #   discover <ev> any (debug)               -> log full stdin payload, allow
 #
 # ── Why the plan gate hangs off .md writes ──────────────────────────────────
@@ -119,21 +119,13 @@ session="$(printf '%s' "$IN" | jq -r '.session_id // .conversation_id // empty' 
 AGENT_VERSION="$(jq -r '.version // empty' "$DATA/.claude-plugin/plugin.json" 2>/dev/null)"
 [ -n "$AGENT_VERSION" ] || AGENT_VERSION="$(jq -r '.version // empty' "$ROOT/../.claude-plugin/plugin.json" 2>/dev/null)"
 
-GIT_BRANCH=""; GIT_REPO=""; GIT_URL=""
-if [ -n "$cwd" ] && [ -d "$cwd" ]; then
-  GIT_BRANCH="$(git -C "$cwd" branch --show-current 2>/dev/null)"
-  _tl="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
-  [ -n "$_tl" ] && GIT_REPO="$(basename "$_tl")"
-  GIT_URL="$(git -C "$cwd" config --get remote.origin.url 2>/dev/null)"
-fi
-
 # Attribution every request carries. Built once, merged into each payload.
+# Branch, repository name and URL are left to the binary, which reads them from
+# the forwarded cwd and still finds a URL when the remote isn't named origin.
 attribution() {
   jq -nc --arg s "$session" --arg c "$cwd" \
     --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
-    --arg br "$GIT_BRANCH" --arg re "$GIT_REPO" --arg ru "$GIT_URL" \
-    '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av,
-      branch:$br, repository:$re, repositoryUrl:$ru}'
+    '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av}'
 }
 
 case "$SUB" in
@@ -174,22 +166,39 @@ case "$SUB" in
     # Claude gate already parses, and passing the object through keeps that
     # true if Devin adds a field.
     file_path="$(printf '%s' "$IN" | jq -r '.tool_input.file_path // .tool_input.path // empty' 2>/dev/null)"
-
-    # apply_patch writes files too, and the matcher covers it, but it carries a
-    # patch rather than a path — so recover the target from the patch header
-    # (apply_patch's "*** Update/Add File:" or a unified diff's +++ b/path).
-    # Without this the gate fires and finds nothing, which reads as "allowed".
+    # Only apply_patch names no path, so write/edit skip this second parse.
+    patch_text=""
     if [ -z "$file_path" ]; then
       patch_text="$(printf '%s' "$IN" | jq -r '.tool_input.patch // .tool_input.diff // .tool_input.input // empty' 2>/dev/null)"
-      if [ -n "$patch_text" ]; then
-        # One expression per form: BSD sed (macOS) has no \| alternation in a
-        # BRE, so a combined pattern silently matches nothing there.
-        file_path="$(printf '%s' "$patch_text" | sed -n \
-          -e 's/^\*\*\* Update File: //p' \
-          -e 's/^\*\*\* Add File: //p' \
-          -e 's/^+++ b\///p' | head -1)"
-        dbg "review-write: recovered path from patch: ${file_path:-<none>}"
+    fi
+
+    # An apply_patch in the Codex format (GPT-family models write every file
+    # with it) is a diff, so the Claude gate below would find a path and no
+    # content, and allow. The binary's Devin gate rebuilds the post-patch file
+    # the way the Codex gate does; hand it the payload when a target is a .md.
+    if [[ "$patch_text" == *'*** Begin Patch'* ]]; then
+      if ! printf '%s' "$patch_text" | grep -Eiq '^\*\*\* (Add File|Update File|Move to): .*\.md[[:space:]]*$'; then
+        dbg "review-write: apply_patch touches no .md, allow"
+        exit 0
       fi
+      devin_in="$(printf '%s' "$IN" | jq -c --arg s "$session" --arg c "$cwd" '. + {session_id:$s, cwd:$c}' 2>/dev/null)"
+      [ -z "$devin_in" ] && exit 0
+      out="$(printf '%s' "$devin_in" | "$BIN" devin-review-write 2>/dev/null)"
+      reason="$(printf '%s' "$out" | jq -r 'if .decision == "block" then .reason // empty else empty end' 2>/dev/null)"
+      if [ -n "$reason" ]; then
+        dbg "review-write: blocking apply_patch"
+        emit_block "$reason"
+      fi
+      exit 0
+    fi
+
+    # A unified-diff apply_patch writes a file too, and the matcher covers it,
+    # but it carries a patch rather than a path — so recover the target from its
+    # +++ b/path header. Without this the gate fires and finds nothing, which
+    # reads as "allowed".
+    if [ -z "$file_path" ] && [ -n "$patch_text" ]; then
+      file_path="$(printf '%s' "$patch_text" | sed -n 's/^+++ b\///p' | head -1)"
+      dbg "review-write: recovered path from patch: ${file_path:-<none>}"
     fi
 
     case "$(printf '%s' "$file_path" | tr '[:upper:]' '[:lower:]')" in
@@ -211,12 +220,14 @@ case "$SUB" in
     claude_in="$(attribution | jq -c --argjson ti "$tool_input" '. + {tool_input:$ti}')"
     out="$(printf '%s' "$claude_in" | "$BIN" should-review-plan 2>/dev/null)"
 
+    # The reason, only when the decision blocks.
     reason="$(printf '%s' "$out" | jq -r '
-      .hookSpecificOutput.permissionDecisionReason // .reason // empty' 2>/dev/null)"
-    decision="$(printf '%s' "$out" | jq -r '
-      .hookSpecificOutput.permissionDecision // .decision // "allow"' 2>/dev/null)"
+      (.hookSpecificOutput.permissionDecision // .decision // "allow") as $decision
+      | if $decision == "deny" or $decision == "block"
+        then .hookSpecificOutput.permissionDecisionReason // .reason // empty
+        else empty end' 2>/dev/null)"
 
-    if { [ "$decision" = "deny" ] || [ "$decision" = "block" ]; } && [ -n "$reason" ]; then
+    if [ -n "$reason" ]; then
       dbg "review-write: blocking path=$file_path"
       emit_block "$reason"
     fi

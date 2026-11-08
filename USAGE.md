@@ -38,4 +38,6 @@ the hook steps aside and your session carries on unaffected.
 | MCP server | HTTP, at your Clover environment | HTTP, at your Clover environment |
 
 The MCP endpoint defaults to `https://streaming.cloversec.io` and is
-overridable at install for self-hosted tenants.
+overridable at install for self-hosted tenants. In Codex the hook runs only
+once you trust it, and a self-hosted endpoint is set in `~/.codex/config.toml`
+instead (see [codex/README.md](codex/README.md#clover-mcp-plugins)).

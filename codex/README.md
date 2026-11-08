@@ -24,6 +24,37 @@ For non-interactive installation, set
 Legacy `CAS_CLOVER_PLUGIN_*` variables remain supported, but the Kura-prefixed
 form takes precedence.
 
+## Clover MCP plugins
+
+`clover-for-security-teams` and `clover-for-developers` install from the same
+marketplace. Each brings its skills (`$clover-for-security-teams:ask-clover`,
+`$clover-for-developers:ask-clover-developer`, …), Clover's MCP server, and a
+daily update check:
+
+```bash
+codex plugin marketplace add https://github.com/clover-security-public/agentic-security-marketplace.git
+codex plugin add clover-for-security-teams@clover-security
+codex mcp login clover-for-security-teams
+```
+
+Use `clover-for-developers` in both commands for the developer plugin. The
+login opens Clover's browser sign-in as your own Clover user; run it again if
+Clover later reports an auth error. In the Codex app, install the plugin from
+**Plugins** and sign in when it asks. Start Codex and trust the plugin's one
+`SessionStart` hook (or run `/hooks`) so it can keep itself current; it
+re-runs `codex plugin add` when the marketplace publishes a newer version.
+
+Codex does not interpolate variables in a plugin's MCP URL, so a self-hosted
+tenant overrides the whole server in `~/.codex/config.toml`, timeout included:
+
+```toml
+[mcp_servers.clover-for-security-teams]
+url = "https://streaming.acme.example.com/streaming/security-team/mcp"
+tool_timeout_sec = 800
+```
+
+The developer plugin's path is `/streaming/developer/mcp`.
+
 ## Beta validation
 
 After the source release has reached the beta marketplace, install that channel

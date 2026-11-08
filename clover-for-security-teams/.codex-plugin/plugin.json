@@ -1,0 +1,33 @@
+{
+  "name": "clover-for-security-teams",
+  "version": "0.1.18",
+  "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
+  "author": {
+    "name": "Clover Security"
+  },
+  "keywords": [
+    "security",
+    "appsec",
+    "security-review",
+    "threat-modeling",
+    "clover"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./codex-mcp.json",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "displayName": "Clover Security MCP - Security Teams",
+    "shortDescription": "Ask Clover about your security posture",
+    "longDescription": "Ask Clover about your application's security posture from inside Codex. Run security reviews, surface threats and required controls, triage findings, and design securely, answered in natural language.",
+    "developerName": "Clover Security",
+    "category": "Security",
+    "capabilities": [
+      "Security reviews and threat modeling",
+      "Security program reporting"
+    ],
+    "defaultPrompt": [
+      "Ask Clover which open threats on my applications I should fix first."
+    ],
+    "websiteURL": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents"
+  }
+}

@@ -32,7 +32,7 @@
         "type": "command",
         "command": "bash .kiro/clover/scripts/run-hook.sh kiro-capture-spec"
       },
-      "timeout": 120,
+      "timeout": 300,
       "enabled": true
     },
     {

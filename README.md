@@ -50,6 +50,25 @@ inventory and its context cost.
 
 [**🔎 What Clover runs, and what leaves your machine →**](USAGE.md)
 
+## Turning off automatic updates
+
+Clover keeps itself current: at the start of each session it checks for a newer
+version and installs it. Where an agent supports it, you can turn this off and
+roll out updates yourself.
+
+| Coding agent | Turn off automatic updates |
+| --- | --- |
+| Cursor | Set `CLOVER_CURSOR_SELF_UPDATE=0` |
+| Codex | Set `CLOVER_CODEX_SELF_UPDATE=0`, or add `export CLOVER_CODEX_SELF_UPDATE=0` to Clover's Codex `env.sh`. MDM-managed installs never update themselves. |
+| Claude Code | Not supported |
+| GitHub Copilot | Not supported |
+| Devin | Not supported |
+| Kiro | Not supported |
+
+Set the variable in the environment the agent starts from; for a fleet, set it
+through your MDM. `0`, `false`, `off` and `no` all turn updates off. With
+updates off, Clover makes no network request to check for a new version.
+
 ---
 
 👉 **For detailed, screenshot-by-screenshot instructions, org-wide rollout, and troubleshooting, see the [Connecting Clover to Coding Agents guide](https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents).**

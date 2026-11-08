@@ -52,13 +52,15 @@ obtain() {
   fi
 }
 
-if [ -n "$TARGET" ]; then
-  DEST="$TARGET/.kiro"
-  HOOK_COMMAND_PREFIX=".kiro/clover"
-else
-  DEST="${HOME}/.kiro"
-  HOOK_COMMAND_PREFIX="${HOME}/.kiro/clover"
-fi
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+DEST="${TARGET:-$HOME}/.kiro"
 
 # Kiro loads a repository's .kiro/hooks/ and the machine-wide ~/.kiro/hooks/
 # together, so installing in both scopes runs every Clover hook twice - and a
@@ -79,14 +81,55 @@ if [ -z "${CLOVER_ALLOW_DUPLICATE_INSTALL:-}" ]; then
   fi
 fi
 
-mkdir -p "$DEST/hooks" "$DEST/clover/scripts" "$DEST/clover/bin"
+mkdir -p "$DEST/clover/bin"
+
+# The binary goes first, so an install refused here wires up no hooks. It is
+# downloaded beside its final path and renamed in only once it matches the
+# marketplace's checksum manifest: re-running this script is how an install
+# updates, and run-hook.sh execs whatever sits at that path, so a dropped
+# connection or a mismatch must leave the installed binary as it was - a
+# truncated one exits 126, which Kiro reads as a block on every spec task. With
+# no manifest there is nothing to verify against, so the install is refused, as
+# every other Clover installer refuses it. The .clover-update- prefix is the one
+# the binary's self-update sweeps and the repository .gitignore below covers.
+BINARY="$DEST/clover/bin/$BINARY_NAME"
+STAGED="$DEST/clover/bin/.clover-update-install-$$${EXE}"
+CHECKSUMS="$(mktemp)"
+trap 'rm -f "$STAGED" "$CHECKSUMS"' EXIT
+obtain "bin/checksums.sha256" "$CHECKSUMS" \
+  || { printf 'clover: no checksum manifest to verify %s against - aborting\n' "$BINARY_NAME" >&2; exit 1; }
+# sha256sum -b marks each name with a leading '*'.
+EXPECTED="$(awk -v name="$BINARY_NAME" '{ file=$2; sub(/\r$/, "", file); sub(/^\*/, "", file); if (file == name) print $1 }' "$CHECKSUMS" | head -1)"
+[ -n "$EXPECTED" ] \
+  || { printf 'clover: %s has no entry in checksums.sha256 - aborting\n' "$BINARY_NAME" >&2; exit 1; }
+obtain "bin/$BINARY_NAME" "$STAGED"
+ACTUAL="$(sha256_of "$STAGED")"
+if [ "$EXPECTED" != "$ACTUAL" ]; then
+  printf 'clover: checksum mismatch for %s - aborting\n' "$BINARY_NAME" >&2
+  exit 1
+fi
+chmod +x "$STAGED"
+# Windows refuses to rename over a binary a running hook holds; the installed
+# one then stays, and a later re-run retries.
+mv -f "$STAGED" "$BINARY"
+
+mkdir -p "$DEST/hooks" "$DEST/clover/scripts"
 
 obtain "kiro/hooks/clover.json" "$DEST/hooks/clover.json.tmp"
 # The shipped hook config invokes the launcher relative to a repo root; a
-# machine-wide install needs the absolute path under $HOME instead.
-sed "s|\.kiro/clover/scripts/run-hook.sh|${HOOK_COMMAND_PREFIX}/scripts/run-hook.sh|g" \
-  "$DEST/hooks/clover.json.tmp" > "$DEST/hooks/clover.json"
-rm -f "$DEST/hooks/clover.json.tmp"
+# machine-wide install needs the absolute path under $HOME instead. Git Bash
+# homes carry spaces and Kiro reads a failed PreTaskExec as a block, so that
+# path is double-quoted (the one quoting bash, cmd and PowerShell share), then
+# escaped for the JSON string and for sed's replacement.
+if [ -n "$TARGET" ]; then
+  mv "$DEST/hooks/clover.json.tmp" "$DEST/hooks/clover.json"
+else
+  LAUNCHER="$(printf '"%s"' "${HOME}/.kiro/clover/scripts/run-hook.sh" \
+    | sed 's/[\\"]/\\&/g' | sed 's/[\\&|]/\\&/g')"
+  sed "s|\.kiro/clover/scripts/run-hook\.sh|${LAUNCHER}|g" \
+    "$DEST/hooks/clover.json.tmp" > "$DEST/hooks/clover.json"
+  rm -f "$DEST/hooks/clover.json.tmp"
+fi
 
 obtain "kiro/scripts/run-hook.sh" "$DEST/clover/scripts/run-hook.sh"
 chmod +x "$DEST/clover/scripts/run-hook.sh"
@@ -100,31 +143,13 @@ mkdir -p "$DEST/clover/.kiro-plugin"
 obtain ".claude-plugin/plugin.json" "$DEST/clover/.kiro-plugin/plugin.json" \
   || printf 'clover: version manifest unavailable - activity will report version "unknown"\n' >&2
 
-obtain "bin/$BINARY_NAME" "$DEST/clover/bin/$BINARY_NAME"
-chmod +x "$DEST/clover/bin/$BINARY_NAME"
-
-# Verify the binary against the marketplace's checksum manifest. A missing
-# manifest is tolerated; a mismatching binary is not.
-CHECKSUMS="$(mktemp)"
-if obtain "bin/checksums.sha256" "$CHECKSUMS" 2>/dev/null; then
-  EXPECTED="$(awk -v name="$BINARY_NAME" '$2 == name { print $1 }' "$CHECKSUMS" | head -1)"
-  if [ -n "$EXPECTED" ]; then
-    if command -v sha256sum >/dev/null; then
-      ACTUAL="$(sha256sum "$DEST/clover/bin/$BINARY_NAME" | cut -d' ' -f1)"
-    else
-      ACTUAL="$(shasum -a 256 "$DEST/clover/bin/$BINARY_NAME" | cut -d' ' -f1)"
-    fi
-    if [ "$EXPECTED" != "$ACTUAL" ]; then
-      printf 'clover: checksum mismatch for %s - aborting\n' "$BINARY_NAME" >&2
-      rm -f "$DEST/clover/bin/$BINARY_NAME" "$CHECKSUMS"
-      exit 1
-    fi
-  fi
-fi
-rm -f "$CHECKSUMS"
-
 if [ -n "$TARGET" ] && ! grep -qs 'clover/env.sh' "$TARGET/.gitignore" 2>/dev/null; then
   printf '\n# Clover credentials - never commit\n.kiro/clover/env.sh\n' >> "$TARGET/.gitignore"
+fi
+# A Windows self-update leaves the old binary beside the new one until a later
+# hook can delete it; a hook killed mid-update can leave a temp file.
+if [ -n "$TARGET" ] && ! grep -qs 'clover-update' "$TARGET/.gitignore" 2>/dev/null; then
+  printf '\n# Clover self-update leftovers\n.kiro/clover/bin/.clover-update-*\n.kiro/clover/bin/*.replaced-*\n' >> "$TARGET/.gitignore"
 fi
 
 # Credentials: prompt on a terminal, otherwise leave a template. /dev/tty is
@@ -163,13 +188,17 @@ if [ ! -f "$ENV_FILE" ]; then
     } 2>/dev/null || true
     exec 3>&- 2>/dev/null || true
   fi
-  cat > "$ENV_FILE" <<EOF
-export CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID=${CLIENT_ID:-FILL_ME}
-export CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET=${CLIENT_SECRET:-FILL_ME}
-export CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL=${AUTH_URL}
-export CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL=${SERVER_URL}
-EOF
-  chmod 600 "$ENV_FILE"
+  # Every hook sources env.sh, so each value is %q-quoted: a secret holding
+  # $, & or a backtick must come back as typed, never expanded or run. The
+  # file is private before the secret reaches it.
+  ( umask 077
+    {
+      printf 'export CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID=%q\n' "${CLIENT_ID:-FILL_ME}"
+      printf 'export CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET=%q\n' "${CLIENT_SECRET:-FILL_ME}"
+      printf 'export CLOVER_SECURITY_KURA_PLUGIN_AUTH_URL=%q\n' "$AUTH_URL"
+      printf 'export CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL=%q\n' "$SERVER_URL"
+    } > "$ENV_FILE"
+  )
 fi
 
 printf 'clover: installed to %s\n' "$DEST"

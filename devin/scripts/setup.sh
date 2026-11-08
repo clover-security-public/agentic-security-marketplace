@@ -88,7 +88,7 @@ verify_binary() {
     echo "clover(devin) setup.sh: bin/checksums.sha256 is missing — refusing to deploy ${ASSET_NAME}" >&2
     return 1
   fi
-  expected=$(awk -v name="$ASSET_NAME" '{ file=$2; sub(/^\*/, "", file); if (file == name) print $1 }' "$checksums" | head -1)
+  expected=$(awk -v name="$ASSET_NAME" '{ file=$2; sub(/\r$/, "", file); sub(/^\*/, "", file); if (file == name) print $1 }' "$checksums" | head -1)
   if [ -z "$expected" ]; then
     echo "clover(devin) setup.sh: ${ASSET_NAME} has no entry in checksums.sha256 — refusing to deploy" >&2
     return 1
@@ -108,17 +108,38 @@ has_plan_gate() {
   printf '%s' "$("$1" 2>&1 || true)" | grep -q 'should-review-plan'
 }
 
-BUNDLED="$TREE/bin/$ASSET_NAME"
-if [ -f "$BUNDLED" ]; then
-  verify_binary "$BUNDLED" || exit 1
-  cp "$BUNDLED" "$BINARY"
-  chmod +x "$BINARY"
-  if ! has_plan_gate "$BINARY"; then
-    echo "clover(devin) setup.sh: bundled ${ASSET_NAME} has no should-review-plan subcommand — the plan gate would never fire" >&2
-    rm -f "$BINARY"
-    exit 1
+# install_verified <src> — every deploy path goes through here. <src> is staged
+# beside the live binary, verified and renamed over it, never copied onto it: a
+# hook may still be running the old binary, and on macOS arm64 overwriting a
+# running executable in place gets every later launch of that file SIGKILLed.
+# The rename leaves the running image its own inode. The .clover-update- prefix
+# is the one the binary's self-update sweeps when a run is killed here. The
+# version marker is written only after the swap, so a refused deploy leaves
+# the working binary and its marker in place, and the next session retries.
+STAGED="$BINARY_DIR/.clover-update-$$${EXE_SUFFIX}"
+trap 'rm -f "$STAGED"' EXIT
+install_verified() {
+  if ! { cp "$1" "$STAGED" && verify_binary "$STAGED" && chmod +x "$STAGED"; }; then
+    rm -f "$STAGED"
+    return 1
+  fi
+  if ! has_plan_gate "$STAGED"; then
+    echo "clover(devin) setup.sh: ${ASSET_NAME} has no should-review-plan subcommand — the plan gate would never fire" >&2
+    rm -f "$STAGED"
+    return 1
+  fi
+  # Windows refuses to rename over a binary a hook is still running; the old
+  # one stays and the next session retries.
+  if ! mv -f "$STAGED" "$BINARY"; then
+    rm -f "$STAGED"
+    return 1
   fi
   echo "$FULL_VERSION" > "$VERSION_FILE"
+}
+
+BUNDLED="$TREE/bin/$ASSET_NAME"
+if [ -f "$BUNDLED" ]; then
+  install_verified "$BUNDLED" || exit 1
   exit 0
 fi
 
@@ -132,10 +153,8 @@ fi
 
 DOWNLOAD="$BINARY_DIR/.download-${ASSET_NAME}"
 curl -sL "https://github.com/$REPO/releases/download/v${FULL_VERSION}/${ASSET_NAME}" -o "$DOWNLOAD" 2>/dev/null
-if [ -s "$DOWNLOAD" ] && verify_binary "$DOWNLOAD"; then
-  mv "$DOWNLOAD" "$BINARY"
-  chmod +x "$BINARY"
-  echo "$FULL_VERSION" > "$VERSION_FILE"
+if [ -s "$DOWNLOAD" ] && install_verified "$DOWNLOAD"; then
+  rm -f "$DOWNLOAD"
   exit 0
 fi
 rm -f "$DOWNLOAD"

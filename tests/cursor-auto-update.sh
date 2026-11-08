@@ -48,6 +48,7 @@ cat > "$PLUGIN_ROOT/bin/clover-hook-darwin-arm64" <<'EOF'
 #!/usr/bin/env bash
 printf '%s|CURSOR_PLUGIN_ROOT=%s|CLAUDE_PLUGIN_ROOT=%s|CLAUDE_PLUGIN_DATA=%s\n' \
   "$1" "${CURSOR_PLUGIN_ROOT:-}" "${CLAUDE_PLUGIN_ROOT:-}" "${CLAUDE_PLUGIN_DATA:-}" >> "$MOCK_CALLS"
+printf '%s\n' "${CLOVER_CURSOR_SELF_UPDATE-unset}" >> "$MOCK_CALLS.optout"
 [ -n "${MOCK_BIN_NOISY:-}" ] && printf 'not json at all\n'
 [ -n "${MOCK_BIN_FAILS:-}" ] && exit 3
 exit 0
@@ -164,5 +165,17 @@ case "$LOCAL_VERSION" in
     echo "ERROR: a local tree's .cursor-plugin manifest is not stamped -local (got $LOCAL_VERSION) — it would self-update to the public build" >&2
     exit 1 ;;
 esac
+
+# --- 7. The opt-out reaches the binary ----------------------------------------
+# cursor-check-update is what honors CLOVER_CURSOR_SELF_UPDATE=0 (the Go suite
+# covers that); setup.sh must hand the variable through, not strip it.
+: > "$CALLS"
+: > "$CALLS.optout"
+out="$(run_setup CLOVER_CURSOR_SELF_UPDATE=0)"
+assert_env_contract "opted out" "$out"
+if [ "$(cat "$CALLS.optout")" != "0" ]; then
+  echo "ERROR: CLOVER_CURSOR_SELF_UPDATE=0 did not reach cursor-check-update: $(cat "$CALLS.optout")" >&2
+  exit 1
+fi
 
 echo "cursor-auto-update.sh: all checks passed"

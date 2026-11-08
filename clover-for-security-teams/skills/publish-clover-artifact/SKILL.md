@@ -18,6 +18,8 @@ Publish when the user asks for a page, a link, or something to share. Otherwise 
 
 **Load the `artifact-design` skill before writing the file.** Then write the HTML to a file and publish it with the Artifact tool. Republish the same path to update in place: the link stays stable.
 
+Without an Artifact tool (Codex, Cursor), skip `artifact-design` and the publish: wrap the page in `<!doctype html>`, `<head>` and `<body>`, save it as a `.html` file in the working directory, and give the user its path to open or share.
+
 ## 2. Build the page
 
 Everything you need is in `assets/`, next to this SKILL.md:

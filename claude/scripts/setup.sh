@@ -38,7 +38,7 @@ verify_binary() {
     echo "clover-plugin setup.sh: bin/checksums.sha256 is missing — refusing to deploy ${ASSET_NAME}" >&2
     return 1
   fi
-  EXPECTED=$(awk -v name="$ASSET_NAME" '{ file=$2; sub(/^\*/, "", file); if (file == name) print $1 }' "$CHECKSUMS_FILE" | head -1)
+  EXPECTED=$(awk -v name="$ASSET_NAME" '{ file=$2; sub(/\r$/, "", file); sub(/^\*/, "", file); if (file == name) print $1 }' "$CHECKSUMS_FILE" | head -1)
   if [ -z "$EXPECTED" ]; then
     echo "clover-plugin setup.sh: ${ASSET_NAME} has no entry in checksums.sha256 — refusing to deploy" >&2
     return 1
@@ -279,18 +279,36 @@ fi
 
 mkdir -p "$BINARY_DIR"
 
-# Primary path: copy the bundled binary that ships with the plugin clone.
+# install_verified <src> — every deploy path goes through here. <src> is staged
+# beside the live binary, verified and renamed over it, never copied onto it: a
+# hook may still be running the old binary, and on macOS arm64 overwriting a
+# running executable in place gets every later launch of that file SIGKILLed.
+# The rename leaves the running image its own inode, as the binary's
+# self-update does. The .clover-update- prefix is the one the self-update
+# sweeps when a run is killed here. The version marker is written only after
+# the swap, so a refused deploy is retried by the next hook.
+STAGED="$BINARY_DIR/.clover-update-$$${EXE_SUFFIX}"
+trap 'rm -f "$STAGED"' EXIT
+install_verified() {
+  if ! { cp "$1" "$STAGED" && verify_binary "$STAGED" && chmod +x "$STAGED"; }; then
+    rm -f "$STAGED"
+    return 1
+  fi
+  # Windows refuses to rename over a binary a hook is still running; the old
+  # one stays with its version marker, and the next hook retries.
+  if ! mv -f "$STAGED" "$BINARY"; then
+    rm -f "$STAGED"
+    return 1
+  fi
+  echo "$PLUGIN_VERSION" > "$VERSION_FILE"
+}
+
+# Primary path: the bundled binary that ships with the plugin clone.
 # This is the only reliable path — it works without gh CLI auth, without
-# a working network, and across all org rollout configurations. It must
-# match the tree's checksum manifest or it does not deploy.
+# a working network, and across all org rollout configurations.
 BUNDLED="${CLAUDE_PLUGIN_ROOT}/bin/${ASSET_NAME}"
 if [ -f "$BUNDLED" ]; then
-  if ! verify_binary "$BUNDLED"; then
-    exit 1
-  fi
-  cp "$BUNDLED" "$BINARY"
-  chmod +x "$BINARY"
-  echo "$PLUGIN_VERSION" > "$VERSION_FILE"
+  install_verified "$BUNDLED" || exit 1
   exit 0
 fi
 
@@ -303,31 +321,25 @@ if [ "$CHANNEL" != "public" ]; then
 fi
 
 # Fallback: GitHub Releases (kept for shallow clones or future detached-bin
-# layouts). Downloads deploy only if they match the tree's checksum manifest.
+# layouts).
 if command -v gh >/dev/null 2>&1; then
   gh release download "v${PLUGIN_VERSION}" \
     --repo "$REPO" \
     --pattern "$ASSET_NAME" \
     --dir "$BINARY_DIR" \
     --clobber 2>/dev/null
-  if [ -f "$BINARY_DIR/$ASSET_NAME" ]; then
-    if verify_binary "$BINARY_DIR/$ASSET_NAME"; then
-      mv "$BINARY_DIR/$ASSET_NAME" "$BINARY"
-      chmod +x "$BINARY"
-      echo "$PLUGIN_VERSION" > "$VERSION_FILE"
-      exit 0
-    fi
+  if [ -f "$BINARY_DIR/$ASSET_NAME" ] && install_verified "$BINARY_DIR/$ASSET_NAME"; then
     rm -f "$BINARY_DIR/$ASSET_NAME"
+    exit 0
   fi
+  rm -f "$BINARY_DIR/$ASSET_NAME"
 fi
 
 URL="https://github.com/$REPO/releases/download/v${PLUGIN_VERSION}/${ASSET_NAME}"
 DOWNLOAD="$BINARY_DIR/.download-${ASSET_NAME}"
 curl -sL "$URL" -o "$DOWNLOAD" 2>/dev/null
-if [ -s "$DOWNLOAD" ] && verify_binary "$DOWNLOAD"; then
-  mv "$DOWNLOAD" "$BINARY"
-  chmod +x "$BINARY"
-  echo "$PLUGIN_VERSION" > "$VERSION_FILE"
+if [ -s "$DOWNLOAD" ] && install_verified "$DOWNLOAD"; then
+  rm -f "$DOWNLOAD"
   exit 0
 fi
 rm -f "$DOWNLOAD"

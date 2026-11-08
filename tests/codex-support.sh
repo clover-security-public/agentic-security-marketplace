@@ -209,4 +209,100 @@ if env "${COMMON_ENV[@]}" \
 fi
 test "$(cat "$FOREIGN_REQUIREMENTS")" = 'allowed_sandbox_modes = ["read-only"]'
 
-printf 'Codex developer and managed installers: OK\n'
+# Codex lists the MCP plugins from .claude-plugin/marketplace.json but, once
+# installed, reads only each plugin's .codex-plugin/plugin.json: its
+# mcpServers and hooks paths replace the marketplace entry's and the default
+# hooks/hooks.json (verified on Codex CLI 0.167.0 with `codex mcp get` and the
+# app-server's hooks/list). Codex interpolates nothing in a plugin's MCP URL —
+# not ${user_config.*}, not ${VAR:-default} — so its config must be concrete,
+# and its tool timeout defaults far below Clover's long streaming turns.
+for plugin in clover-for-security-teams clover-for-developers; do
+  MANIFEST="$ROOT/$plugin/.codex-plugin/plugin.json"
+  for field in name:"$plugin" skills:./skills/ mcpServers:./codex-mcp.json hooks:./hooks/codex-hooks.json; do
+    key="${field%%:*}"; want="${field#*:}"
+    got="$(jq -r --arg k "$key" '.[$k] // ""' "$MANIFEST")"
+    [ "$got" = "$want" ] || { printf '%s must set "%s": "%s" (got %s)\n' "$MANIFEST" "$key" "$want" "$got" >&2; exit 1; }
+  done
+  test "$(jq -r '.interface.displayName' "$MANIFEST")" = "$(jq -r '.displayName' "$ROOT/$plugin/.cursor-plugin/plugin.json")"
+
+  SERVER="$(jq -r '.mcpServers | keys[0]' "$ROOT/$plugin/claude-mcp.json")"
+  test "$(jq -r '.mcpServers | keys | join(",")' "$ROOT/$plugin/codex-mcp.json")" = "$SERVER"
+  test "$(jq -r --arg s "$SERVER" '.mcpServers[$s].type' "$ROOT/$plugin/codex-mcp.json")" = http
+  CLAUDE_URL="$(jq -r --arg s "$SERVER" '.mcpServers[$s].url' "$ROOT/$plugin/claude-mcp.json")"
+  CODEX_URL="$(jq -r --arg s "$SERVER" '.mcpServers[$s].url' "$ROOT/$plugin/codex-mcp.json")"
+  case "$CODEX_URL" in
+    *'${'*|[!h]*) printf '%s/codex-mcp.json url must be a concrete https URL (got %s)\n' "$plugin" "$CODEX_URL" >&2; exit 1 ;;
+  esac
+  test "${CODEX_URL#https://*/}" = "${CLAUDE_URL#*\}/}"
+  CLAUDE_TIMEOUT_SEC="$(jq -r --arg s "$SERVER" '(.mcpServers[$s].timeout // 0) / 1000 | floor' "$ROOT/$plugin/claude-mcp.json")"
+  CODEX_TIMEOUT_SEC="$(jq -r --arg s "$SERVER" '.mcpServers[$s].tool_timeout_sec // 0' "$ROOT/$plugin/codex-mcp.json")"
+  [ "$CODEX_TIMEOUT_SEC" -ge "$CLAUDE_TIMEOUT_SEC" ] \
+    || { printf '%s tool_timeout_sec %s is below Claude'\''s %ss\n' "$plugin" "$CODEX_TIMEOUT_SEC" "$CLAUDE_TIMEOUT_SEC" >&2; exit 1; }
+done
+
+# The MCP plugins' SessionStart update runs under Codex with the `codex`
+# argument: it must compare the Codex manifest's version (the one Codex
+# installed), apply the update through the codex CLI, and never reach for the
+# claude CLI. Without the argument it stays Claude Code's update path.
+UPDATE_BIN="$TEST_DIR/update-bin"
+mkdir -p "$UPDATE_BIN"
+cat > "$UPDATE_BIN/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"plugins":[{"name":"clover-for-security-teams","version":"9.9.9"},{"name":"clover-for-developers","version":"9.9.9"}]}'
+EOF
+for agent_cli in codex claude; do
+  cat > "$UPDATE_BIN/$agent_cli" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "$agent_cli \$*" >> "\$AGENT_COMMAND_LOG"
+EOF
+done
+chmod +x "$UPDATE_BIN"/*
+
+for plugin in clover-for-security-teams clover-for-developers; do
+  PLUGIN_COPY="$TEST_DIR/$plugin"
+  cp -R "$ROOT/$plugin" "$PLUGIN_COPY"
+  # Only the Codex manifest is behind: an update proves the script read it.
+  jq '.version = "9.9.9"' "$ROOT/$plugin/.claude-plugin/plugin.json" > "$PLUGIN_COPY/.claude-plugin/plugin.json"
+  jq '.version = "0.0.1"' "$ROOT/$plugin/.codex-plugin/plugin.json" > "$PLUGIN_COPY/.codex-plugin/plugin.json"
+
+  COMMAND="$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$PLUGIN_COPY/hooks/codex-hooks.json")"
+  AGENT_COMMAND_LOG="$TEST_DIR/$plugin-codex-update.log"
+  env PATH="$UPDATE_BIN:$PATH" HOME="$TEST_DIR/home" AGENT_COMMAND_LOG="$AGENT_COMMAND_LOG" \
+    CLAUDE_PLUGIN_ROOT="$PLUGIN_COPY" CLAUDE_PLUGIN_DATA="$TEST_DIR/$plugin-codex-data" \
+    bash -c "$COMMAND" 2> "$TEST_DIR/$plugin-codex-update.err"
+  grep -qx 'codex plugin marketplace upgrade clover-security' "$AGENT_COMMAND_LOG"
+  grep -qx "codex plugin add $plugin@clover-security" "$AGENT_COMMAND_LOG"
+  if grep -q '^claude ' "$AGENT_COMMAND_LOG"; then
+    printf '%s Codex update reached the claude CLI\n' "$plugin" >&2
+    exit 1
+  fi
+  grep -q "updated 0.0.1 -> 9.9.9" "$TEST_DIR/$plugin-codex-update.err"
+
+  # Claude Code's path reads its own manifest, which is already current here.
+  AGENT_COMMAND_LOG="$TEST_DIR/$plugin-claude-current.log"
+  env PATH="$UPDATE_BIN:$PATH" HOME="$TEST_DIR/home" AGENT_COMMAND_LOG="$AGENT_COMMAND_LOG" \
+    CLAUDE_PLUGIN_ROOT="$PLUGIN_COPY" CLAUDE_PLUGIN_DATA="$TEST_DIR/$plugin-claude-current-data" \
+    bash "$PLUGIN_COPY/scripts/check-update.sh"
+  if [ -s "$AGENT_COMMAND_LOG" ]; then
+    printf '%s Claude update ran with a current Claude manifest: %s\n' "$plugin" "$(cat "$AGENT_COMMAND_LOG")" >&2
+    exit 1
+  fi
+
+  # Swap which manifest is behind: Claude Code's path must now update through
+  # the claude CLI alone.
+  jq '.version = "0.0.1"' "$ROOT/$plugin/.claude-plugin/plugin.json" > "$PLUGIN_COPY/.claude-plugin/plugin.json"
+  jq '.version = "9.9.9"' "$ROOT/$plugin/.codex-plugin/plugin.json" > "$PLUGIN_COPY/.codex-plugin/plugin.json"
+  COMMAND="$(jq -r '.hooks.SessionStart[0].hooks[0].command' "$PLUGIN_COPY/hooks/hooks.json")"
+  AGENT_COMMAND_LOG="$TEST_DIR/$plugin-claude-update.log"
+  env PATH="$UPDATE_BIN:$PATH" HOME="$TEST_DIR/home" AGENT_COMMAND_LOG="$AGENT_COMMAND_LOG" \
+    CLAUDE_PLUGIN_ROOT="$PLUGIN_COPY" CLAUDE_PLUGIN_DATA="$TEST_DIR/$plugin-claude-update-data" \
+    bash -c "$COMMAND" 2> "$TEST_DIR/$plugin-claude-update.err"
+  grep -qx 'claude plugin marketplace update clover-security' "$AGENT_COMMAND_LOG"
+  grep -qx "claude plugin update $plugin@clover-security" "$AGENT_COMMAND_LOG"
+  if grep -q '^codex ' "$AGENT_COMMAND_LOG"; then
+    printf '%s Claude update reached the codex CLI\n' "$plugin" >&2
+    exit 1
+  fi
+done
+
+printf 'Codex developer and managed installers, MCP plugin updates: OK\n'

@@ -264,7 +264,9 @@ cursor_result="$(
     TEST_UNAME_M="x86_64" \
       bash "$PLUGIN_ROOT/cursor/scripts/run-hook.sh" review-plan 2>"$cursor_error"
 )"
-if [ "$cursor_result" != '{"permission":"allow"}' ]; then
+# A tool other than CreatePlan passes through silently: the shim never grants
+# a permission (cursor-pretool-no-allow.sh).
+if [ -n "$cursor_result" ]; then
   echo "ERROR: Cursor dispatcher returned an unexpected result: $cursor_result" >&2
   exit 1
 fi

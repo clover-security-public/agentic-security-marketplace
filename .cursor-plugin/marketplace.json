@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Protect your coding agent experience. Clover catches missing security requirements before code is written — automatic STRIDE-style threat modeling on every plan, zero ceremony, zero interruption.",
-    "version": "0.1.106"
+    "version": "0.1.107"
   },
   "plugins": [
     {
@@ -20,14 +20,14 @@
       "displayName": "Clover Security MCP - Security Teams",
       "source": "./clover-for-security-teams",
       "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
-      "version": "0.1.17"
+      "version": "0.1.18"
     },
     {
       "name": "clover-for-developers",
       "displayName": "Clover Security MCP - Developers",
       "source": "./clover-for-developers",
       "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design review (by its link), and read back the reviews you have access to — answered in natural language.",
-      "version": "0.1.5"
+      "version": "0.1.6"
     }
   ]
 }

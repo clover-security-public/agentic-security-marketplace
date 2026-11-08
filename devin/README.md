@@ -21,6 +21,12 @@ locally, and until `devin plugins list` shows `clover`, sessions run without the
 plugin. It also silently replaces a `--local` install of the same plugin.
 `--local` installs immediately, on this machine only.
 
+The beta ring installs from its own marketplace:
+
+```bash
+devin plugins install clover-security-public/clover-security-marketplace-beta -y
+```
+
 Then set credentials once (Clover Settings → API Tokens):
 
 ```bash
@@ -129,10 +135,12 @@ so a vocabulary change cannot silently turn the gate into a no-op.
 | — | n/a: no `ExitPlanMode` tool | `ExitPlanMode` → `review-plan` |
 | — | not wired (see **Updates**) | `SessionStart` → `check-update` |
 
-`apply_patch` is in the matcher because Devin writes files through it too. It
-carries a patch rather than a path, so the target is recovered from the patch
-header (`*** Update/Add File:`, or a unified diff's `+++ b/`); without that the
-gate fires, finds no path, and allows — which reads exactly like a reviewed write.
+`apply_patch` is in the matcher because Devin writes files through it too, and
+GPT-family models write every file with it. It carries a patch rather than the
+file, so a patch in the Codex format (`*** Begin Patch`) is handed to the
+binary's `devin-review-write`, which rebuilds each `.md` it writes with the
+Codex gate's parser and reviews the result; without that the gate finds a path,
+resolves no content, and allows — which reads exactly like a reviewed write.
 
 Devin exports `DEVIN_PLUGIN_ROOT` (and `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PROJECT_DIR`)
 to plugin hooks; `PLUGIN_ROOT` from the public docs is **not** set. Hook commands
@@ -176,9 +184,11 @@ is not a hook event, so on Devin a plan that is only discussed in chat and never
 written to a `.md` is **not** reviewed. Anything written to a `.md` is gated
 identically on both.
 
-`apply_patch` is covered defensively: it is in the matcher and its header is
-parsed for the target path, but Devin's model reached for `edit` in every
-live capture, so that payload shape has not been observed in the wild.
+`apply_patch` is covered defensively: Devin's model reached for `edit` in every
+live capture, so its payload shape has not been observed in the wild. The gate
+reads the patch from `tool_input.patch`, `.diff` or `.input` and reconstructs it
+the way the Codex gate does; a unified diff (`+++ b/`) yields a path but no
+content, and is allowed.
 
 ## Windows
 

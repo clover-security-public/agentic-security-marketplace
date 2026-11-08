@@ -78,7 +78,7 @@ In either flow, **a refusal is a normal outcome, not an error** — Clover's rep
 }
 ```
 
-On `failed`, read `fail_reason` and tell the user rather than silently retrying. An auth/identity error usually means the OAuth login didn't complete — have the user re-run `/mcp`.
+On `failed`, read `fail_reason` and tell the user rather than silently retrying. An auth/identity error usually means the OAuth login didn't complete — have the user re-run `/mcp` (in Codex: `codex mcp login clover-for-security-teams`).
 
 ## Notes
 

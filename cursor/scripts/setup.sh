@@ -60,13 +60,12 @@ cp "${ROOT}/.cursor-plugin/plugin.json" "$DATA/.claude-plugin/plugin.json" 2>/de
 # here because hooks.json's sessionStart runs clover-hook.cmd, whose POSIX
 # branch routes to this script instead of the binary's cursor-setup where that
 # call sits — so on macOS and Linux it would otherwise never run. Windows
-# reaches cursor-setup directly and skips the swap inside the binary, because a
-# running .exe cannot be replaced.
+# reaches cursor-setup directly, which runs the same refresh.
 #
 # Best-effort and bounded by the binary's own timeouts (10s for the manifest,
 # 60s per download): any failure leaves the installed binary in place, and both
 # streams are discarded so only the env contract below reaches Cursor.
-# CLOVER_CURSOR_SELF_UPDATE=0 opts a machine out.
+# CLOVER_CURSOR_SELF_UPDATE=0 opts a machine out; cursor-check-update checks it.
 if [ -x "$BIN" ]; then
   CURSOR_PLUGIN_ROOT="$ROOT" \
   CLAUDE_PLUGIN_ROOT="$DATA" \

@@ -144,7 +144,7 @@ not do. Relay it as it stands.
 
 On `failed`, read `fail_reason` and tell the developer rather than silently retrying. An
 auth/identity error usually means the OAuth login didn't complete — have the developer re-run
-`/mcp`.
+`/mcp` (in Codex: `codex mcp login clover-for-developers`).
 
 ## Checking analysis status directly: `get_security_review_analysis_status`
 

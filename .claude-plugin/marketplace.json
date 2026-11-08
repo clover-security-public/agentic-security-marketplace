@@ -15,7 +15,7 @@
       },
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
       "category": "security",
-      "version": "0.1.106",
+      "version": "0.1.107",
       "homepage": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
       "hooks": {
         "SessionStart": [
@@ -81,7 +81,7 @@
       "source": "./clover-for-security-teams",
       "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
       "category": "security",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "homepage": "https://github.com/clover-security-public/agentic-security-marketplace#readme",
       "hooks": {
         "SessionStart": [
@@ -114,7 +114,7 @@
       "source": "./clover-for-developers",
       "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design review (by its link), and read back the reviews you have access to — answered in natural language.",
       "category": "security",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "homepage": "https://github.com/clover-security-public/agentic-security-marketplace#readme",
       "hooks": {
         "SessionStart": [

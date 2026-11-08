@@ -17,6 +17,8 @@ fi
 # SessionStart never fired with the plugin loaded, so setup.sh never ran
 # and the binary was never deployed — making every hook event silently
 # no-op. Run setup.sh on demand whenever the binary is missing or stale.
+# Its output goes to stderr: stdout is the hook's decision, and anything ahead
+# of the binary's JSON makes Claude Code drop a deny.
 EXE_SUFFIX=""
 case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
     mingw*|msys*|cygwin*|windows_nt*) EXE_SUFFIX=".exe" ;;
@@ -30,7 +32,7 @@ plugin_is_newer() {
   [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$1" ]
 }
 if [ ! -x "$BINARY" ] || plugin_is_newer "$PLUGIN_VERSION" "$(cat "$VERSION_FILE" 2>/dev/null)"; then
-    bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh"
+    bash "${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh" >&2
 fi
 
 # Registry self-heal trigger. For users stuck in split-brain state

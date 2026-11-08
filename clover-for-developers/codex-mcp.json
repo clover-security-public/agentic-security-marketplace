@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "clover-for-developers": {
+      "type": "http",
+      "url": "https://streaming.cloversec.io/streaming/developer/mcp",
+      "tool_timeout_sec": 800
+    }
+  }
+}

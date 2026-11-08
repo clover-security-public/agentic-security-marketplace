@@ -83,6 +83,12 @@ assert triggers == {"SessionStart", "UserPromptSubmit", "PostFileSave", "PreTask
 # reading as one feature.
 assert {hook["name"] for hook in hooks} == {"Clover Security"}, [h["name"] for h in hooks]
 assert all(hook["action"]["command"].startswith("bash .kiro/clover/scripts/run-hook.sh") for hook in hooks)
+# Both review hooks run a plan review, which the binary bounds at 270s
+# (hookBudget). A shorter timeout kills capture mid-poll: the verdict is lost
+# and the spec's capture lock stays held for ten minutes.
+for hook in hooks:
+    if hook["action"]["command"].endswith(("kiro-capture-spec", "kiro-pre-task")):
+        assert hook.get("timeout", 0) >= 300, hook
 PY
 
 # --- fixtures for the installer cases -------------------------------------
@@ -180,5 +186,138 @@ HOME="$MIXED_HOME" CLOVER_ALLOW_DUPLICATE_INSTALL=1 CLOVER_MARKETPLACE_URL="file
   bash "$CLONE/kiro/scripts/install.sh" "$MIXED_REPO" >/dev/null
 [ -f "$MIXED_REPO/.kiro/hooks/clover.json" ] \
   || { echo "ERROR: CLOVER_ALLOW_DUPLICATE_INSTALL=1 did not install" >&2; exit 1; }
+
+# --- a home directory the shell would split -----------------------------------
+# Git Bash on Windows gives HOME=/c/Users/<display name>, spaces included. Kiro
+# reads any non-zero exit from PreTaskExec as a block, so a hook command that
+# word-splits blocks every spec task: each installed command must run as-is.
+ODD_HOME="$TEST_DIR/odd home & co|ltd"
+mkdir -p "$ODD_HOME"
+(cd "$ODD_HOME" && HOME="$ODD_HOME" CLOVER_MARKETPLACE_URL="file://$REMOTE" CLOVER_NO_PROMPT=1 \
+  CLOVER_SERVER_URL='https://api.test/a b$HOME`x`' \
+  bash "$CLONE/kiro/scripts/install.sh" >/dev/null)
+jq -r '.hooks[].action.command' "$ODD_HOME/.kiro/hooks/clover.json" | while IFS= read -r command; do
+  (cd "$TEST_DIR" && HOME="$ODD_HOME" bash -c "$command" </dev/null >/dev/null 2>&1) \
+    || { echo "ERROR: installed hook command fails under a home with spaces: $command" >&2; exit 1; }
+done
+
+# env.sh is sourced by every hook, so what the developer typed must come back
+# byte for byte, never expanded or run.
+server_url=$(env -i bash -c '. "$1" && printf %s "$CLOVER_SECURITY_KURA_PLUGIN_SERVER_URL"' _ \
+  "$ODD_HOME/.kiro/clover/env.sh")
+[ "$server_url" = 'https://api.test/a b$HOME`x`' ] \
+  || { echo "ERROR: env.sh did not round-trip the configured value, got '$server_url'" >&2; exit 1; }
+[ -n "$(find "$ODD_HOME/.kiro/clover/env.sh" -perm 600)" ] \
+  || { echo "ERROR: env.sh holds the client secret but is not private (600)" >&2; exit 1; }
+
+# --- a re-run replaces the binary only with a verified one ---------------------
+# Re-running the installer is the update path, and run-hook.sh execs whatever
+# sits at the binary's path: a truncated or rejected binary exits 126, which
+# Kiro reads as a block on every spec task. A download that fails or does not
+# verify must leave the installed binary exactly as it was.
+UPDATE_REPO="$TEST_DIR/update-repo"
+mkdir -p "$UPDATE_REPO"
+HOME="$CLEAN_HOME" CLOVER_MARKETPLACE_URL="file://$TEST_DIR/does-not-exist" CLOVER_NO_PROMPT=1 \
+  bash "$CLONE/kiro/scripts/install.sh" "$UPDATE_REPO" >/dev/null
+INSTALLED="$UPDATE_REPO/.kiro/clover/bin/$BINARY_NAME"
+cp "$INSTALLED" "$TEST_DIR/installed-binary"
+
+assert_binary_kept() {
+  { cmp -s "$INSTALLED" "$TEST_DIR/installed-binary" && [ -x "$INSTALLED" ]; } \
+    || { echo "ERROR: $1 replaced or removed the installed binary" >&2; exit 1; }
+  leftovers="$(find "$UPDATE_REPO/.kiro/clover/bin" -name '.clover-update-*')"
+  [ -z "$leftovers" ] || { echo "ERROR: $1 left a staging file behind: $leftovers" >&2; exit 1; }
+}
+
+# variant_tree <name> — the clone with a newer binary and the old manifest.
+variant_tree() {
+  VARIANT="$TEST_DIR/$1"
+  cp -R "$CLONE" "$VARIANT"
+  printf '#!/usr/bin/env bash\n# newer\nexit 0\n' > "$VARIANT/bin/$BINARY_NAME"
+}
+reinstall_from() {
+  HOME="$CLEAN_HOME" CLOVER_MARKETPLACE_URL="file://$TEST_DIR/does-not-exist" CLOVER_NO_PROMPT=1 \
+    bash "$1/kiro/scripts/install.sh" "$UPDATE_REPO" >/dev/null 2>&1
+}
+
+# A connection dropped mid-download, through the piped one-liner: curl has
+# written part of the binary when it fails, and set -e stops the installer.
+REAL_CURL="$(command -v curl)"
+FAKE_PATH="$TEST_DIR/fake-path"
+mkdir -p "$FAKE_PATH"
+cat > "$FAKE_PATH/curl" <<EOF
+#!/usr/bin/env bash
+out=""; url=""
+while [ \$# -gt 0 ]; do
+  case "\$1" in -o) out="\$2"; shift ;; -*) ;; *) url="\$1" ;; esac
+  shift
+done
+case "\$url" in
+  */bin/$BINARY_NAME) head -c 10 "$CLONE/bin/$BINARY_NAME" > "\$out"; exit 18 ;;
+esac
+exec "$REAL_CURL" -fsSL "\$url" -o "\$out"
+EOF
+chmod +x "$FAKE_PATH/curl"
+if (cd "$TEST_DIR" && PATH="$FAKE_PATH:$PATH" HOME="$CLEAN_HOME" CLOVER_MARKETPLACE_URL="file://$CLONE" \
+  CLOVER_NO_PROMPT=1 bash -s -- "$UPDATE_REPO" < "$CLONE/kiro/scripts/install.sh" >/dev/null 2>&1); then
+  echo "ERROR: a re-run whose binary download dropped reported success" >&2; exit 1
+fi
+assert_binary_kept "a dropped binary download"
+
+variant_tree tree-mismatch
+if reinstall_from "$TEST_DIR/tree-mismatch"; then
+  echo "ERROR: a binary that fails its checksum installed" >&2; exit 1
+fi
+assert_binary_kept "a binary that fails its checksum"
+
+# No manifest means nothing to verify against, so nothing is installed — as
+# every other installer refuses. A first install refused this way hooks nothing.
+variant_tree tree-no-manifest
+rm "$TEST_DIR/tree-no-manifest/bin/checksums.sha256"
+if reinstall_from "$TEST_DIR/tree-no-manifest"; then
+  echo "ERROR: a binary with no checksum manifest installed" >&2; exit 1
+fi
+assert_binary_kept "a missing checksum manifest"
+FRESH_REPO="$TEST_DIR/fresh-repo"
+mkdir -p "$FRESH_REPO"
+if HOME="$CLEAN_HOME" CLOVER_MARKETPLACE_URL="file://$TEST_DIR/does-not-exist" CLOVER_NO_PROMPT=1 \
+  bash "$TEST_DIR/tree-no-manifest/kiro/scripts/install.sh" "$FRESH_REPO" >/dev/null 2>&1; then
+  echo "ERROR: a first install with no checksum manifest reported success" >&2; exit 1
+fi
+[ ! -e "$FRESH_REPO/.kiro/hooks/clover.json" ] && [ ! -e "$FRESH_REPO/.kiro/clover/bin/$BINARY_NAME" ] \
+  || { echo "ERROR: a refused first install still wired hooks or a binary into $FRESH_REPO" >&2; exit 1; }
+
+# sha256sum -b writes "<hash> *<name>". That line must be checked, never read
+# as no entry and skipped.
+variant_tree tree-binary-mode
+awk '{ print $1 " *" $2 }' "$CLONE/bin/checksums.sha256" > "$TEST_DIR/tree-binary-mode/bin/checksums.sha256"
+if reinstall_from "$TEST_DIR/tree-binary-mode"; then
+  echo "ERROR: a binary-mode checksum line was skipped, so a mismatching binary installed" >&2; exit 1
+fi
+assert_binary_kept "a mismatching binary-mode checksum line"
+
+# And a binary that verifies does land, as a new file renamed into place.
+(
+  cd "$TEST_DIR/tree-binary-mode/bin"
+  if command -v sha256sum >/dev/null; then
+    sha256sum -b "$BINARY_NAME" > checksums.sha256
+  else
+    printf '%s *%s\n' "$(shasum -a 256 "$BINARY_NAME" | cut -d' ' -f1)" "$BINARY_NAME" > checksums.sha256
+  fi
+)
+reinstall_from "$TEST_DIR/tree-binary-mode" \
+  || { echo "ERROR: a binary matching its binary-mode checksum line did not install" >&2; exit 1; }
+{ cmp -s "$INSTALLED" "$TEST_DIR/tree-binary-mode/bin/$BINARY_NAME" && [ -x "$INSTALLED" ]; } \
+  || { echo "ERROR: a verified update did not replace the installed binary" >&2; exit 1; }
+leftovers="$(find "$UPDATE_REPO/.kiro/clover/bin" -name '.clover-update-*')"
+[ -z "$leftovers" ] || { echo "ERROR: a verified update left a staging file behind: $leftovers" >&2; exit 1; }
+
+# A Windows clone with core.autocrlf checks the manifest out with CRLF; its
+# lines must still match, not read as no entry and refuse the install.
+variant_tree tree-crlf
+awk '{ printf "%s\r\n", $0 }' "$CLONE/bin/checksums.sha256" > "$TEST_DIR/tree-crlf/bin/checksums.sha256"
+cp "$CLONE/bin/$BINARY_NAME" "$TEST_DIR/tree-crlf/bin/$BINARY_NAME"
+reinstall_from "$TEST_DIR/tree-crlf" \
+  || { echo "ERROR: a CRLF checksum manifest refused a binary that matches it" >&2; exit 1; }
 
 echo "kiro-power.sh: OK"

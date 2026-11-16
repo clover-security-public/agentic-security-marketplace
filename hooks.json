@@ -26,11 +26,23 @@
   ],
   "PreToolUse": [
     {
-      "matcher": "write|edit|apply_patch",
+      "matcher": "write|edit|apply_patch|write_plan|exec",
       "hooks": [
         {
           "type": "command",
           "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PLUGIN_ROOT}/devin}/scripts/clover-hook.cmd\" review-write",
+          "timeout": 300
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "exec",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PLUGIN_ROOT}/devin}/scripts/clover-hook.cmd\" review-exec",
           "timeout": 300
         }
       ]

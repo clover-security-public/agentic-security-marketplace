@@ -10,8 +10,35 @@ python3 - "$ROOT/codex/hooks/hooks.json" <<'PY'
 import json, pathlib, sys
 hooks = json.loads(pathlib.Path(sys.argv[1]).read_text())["hooks"]
 session_start = hooks["SessionStart"][0]["hooks"]
-assert len(session_start) == 1, session_start
+assert len(session_start) == 2, session_start
 assert session_start[0]["command"].endswith("codex-check-update"), session_start
+assert session_start[0]["async"] is True, session_start
+# The session baseline must be pinned before the first turn, so it runs sync.
+assert session_start[1]["command"].endswith("codex-session-start"), session_start
+assert "async" not in session_start[1] and session_start[1]["timeout"] <= 30, session_start
+# The working-tree snapshot is what tells PostToolUse whether the patch or
+# command edited, so it runs sync before each.
+pre_tool_use = hooks["PreToolUse"]
+assert [group["matcher"] for group in pre_tool_use] == ["apply_patch", "apply_patch|Bash"], pre_tool_use
+assert pre_tool_use[1]["hooks"][0]["command"].endswith("codex-snapshot-working-tree"), pre_tool_use
+assert "async" not in pre_tool_use[1]["hooks"][0] and pre_tool_use[1]["hooks"][0]["timeout"] == 15, pre_tool_use
+post_tool_use = hooks["PostToolUse"]
+assert [group["matcher"] for group in post_tool_use] == ["apply_patch", "Bash"], post_tool_use
+assert all(len(group["hooks"]) == 1 and group["hooks"][0]["command"].endswith("codex-log-edited-files") for group in post_tool_use), post_tool_use
+# PostToolUse injects finished implementation reviews, so it runs sync; the
+# Bash entry fires for every shell command and never polls, so it is shorter.
+assert "async" not in post_tool_use[0]["hooks"][0] and post_tool_use[0]["hooks"][0]["timeout"] == 20, post_tool_use
+assert "async" not in post_tool_use[1]["hooks"][0] and post_tool_use[1]["hooks"][0]["timeout"] == 10, post_tool_use
+stop = hooks["Stop"][0]["hooks"]
+assert len(stop) == 2, stop
+assert stop[0]["command"].endswith("codex-review-plan") and "async" not in stop[0], stop
+assert stop[1]["command"].endswith("codex-stop-implementation-review"), stop
+assert stop[1]["async"] is True and stop[1]["timeout"] == 30, stop
+user_prompt = hooks["UserPromptSubmit"][0]["hooks"]
+assert len(user_prompt) == 2, user_prompt
+assert user_prompt[0]["command"].endswith("codex-inject-implementation-requirements"), user_prompt
+assert "async" not in user_prompt[0] and user_prompt[0]["timeout"] == 10, user_prompt
+assert user_prompt[1]["command"].endswith("codex-log-prompt") and user_prompt[1]["async"] is True, user_prompt
 PY
 
 FAKE_MARKETPLACE="$TEST_DIR/marketplace"
@@ -188,9 +215,27 @@ config = tomllib.loads(path.read_text())
 assert config["features"]["hooks"] is True
 assert config["hooks"]["managed_dir"] == managed_dir
 assert "allow_managed_hooks_only" not in config
-assert set(config["hooks"]) == {"managed_dir", "PreToolUse", "Stop", "UserPromptSubmit"}
-commands = [hook["command"] for event in ("PreToolUse", "Stop", "UserPromptSubmit") for group in config["hooks"][event] for hook in group["hooks"]]
+assert set(config["hooks"]) == {"managed_dir", "SessionStart", "PreToolUse", "PostToolUse", "Stop", "UserPromptSubmit"}
+commands = [hook["command"] for event in ("SessionStart", "PreToolUse", "PostToolUse", "Stop", "UserPromptSubmit") for group in config["hooks"][event] for hook in group["hooks"]]
+assert [group["matcher"] for group in config["hooks"]["PreToolUse"]] == ["^apply_patch$", "^(apply_patch|Bash)$"], config["hooks"]["PreToolUse"]
+assert commands.count(managed_dir + "/run-hook.sh codex-snapshot-working-tree") == 1, commands
+shell_pre_tool_use_hook = config["hooks"]["PreToolUse"][1]["hooks"][0]
+assert "async" not in shell_pre_tool_use_hook and shell_pre_tool_use_hook["timeout"] == 15, shell_pre_tool_use_hook
+assert [group["matcher"] for group in config["hooks"]["PostToolUse"]] == ["^apply_patch$", "^Bash$"], config["hooks"]["PostToolUse"]
+assert commands.count(managed_dir + "/run-hook.sh codex-log-edited-files") == 2, commands
+assert commands.count(managed_dir + "/run-hook.sh codex-session-start") == 1, commands
+assert "async" not in config["hooks"]["SessionStart"][0]["hooks"][0], config["hooks"]["SessionStart"]
 assert all(command.startswith(managed_dir + "/run-hook.sh ") for command in commands), commands
+post_tool_use_hook = config["hooks"]["PostToolUse"][0]["hooks"][0]
+assert "async" not in post_tool_use_hook and post_tool_use_hook["timeout"] == 20, post_tool_use_hook
+shell_post_tool_use_hook = config["hooks"]["PostToolUse"][1]["hooks"][0]
+assert "async" not in shell_post_tool_use_hook and shell_post_tool_use_hook["timeout"] == 10, shell_post_tool_use_hook
+stop = config["hooks"]["Stop"][0]["hooks"]
+assert [hook["command"] for hook in stop] == [managed_dir + "/run-hook.sh codex-review-plan", managed_dir + "/run-hook.sh codex-stop-implementation-review"], stop
+assert "async" not in stop[0] and stop[1]["async"] is True and stop[1]["timeout"] == 30, stop
+user_prompt = config["hooks"]["UserPromptSubmit"][0]["hooks"]
+assert [hook["command"] for hook in user_prompt] == [managed_dir + "/run-hook.sh codex-inject-implementation-requirements", managed_dir + "/run-hook.sh codex-log-prompt"], user_prompt
+assert "async" not in user_prompt[0] and user_prompt[0]["timeout"] == 10 and user_prompt[1]["async"] is True, user_prompt
 PY
 
 # An organization-owned requirements file is never replaced or appended to by

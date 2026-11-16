@@ -45,21 +45,26 @@ deny_pretool()  { jq -nc --arg r "$1" '{permission:"deny", user_message:$r, agen
 continue_ok()   { printf '{"continue":true}\n'; }
 safe_default()  { case "$SUB" in log-prompt) continue_ok ;; *) : ;; esac; }
 
-# Locate the binary. sessionStart injects CLOVER_HOOK_BIN; otherwise derive it.
-BIN="${CLOVER_HOOK_BIN:-}"
-if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
-  # <tree>/cursor/scripts -> <tree>: bin/ hangs off the tree root, not off
-  # cursor/ (see the same climb in setup.sh).
-  ROOT="${CURSOR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
-  OS="$(uname -s | tr '[:upper:]' '[:lower:]')"; ARCH="$(uname -m)"
-  EXE_SUFFIX=""
-  case "$OS" in
-    darwin*) OS=darwin ;;
-    linux*) OS=linux ;;
-    mingw*|msys*|cygwin*|windows_nt*) OS=windows; EXE_SUFFIX=.exe ;;
-  esac
-  case "$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
-  BIN="${ROOT}/bin/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
+# Locate the binary in this launcher's own tree. The CLOVER_HOOK_BIN that
+# sessionStart injects is only a fallback, for a tree that ships no binary (a
+# source checkout): Cursor merges the sessionStart env of every installed
+# plugin, so with two Clover installs (Cursor's and the Claude Code plugin
+# Cursor also loads) it names whichever install's setup ran last, and an older
+# binary lacks this launcher's subcommands (marketplace/tests/cursor-two-installs.sh).
+# <tree>/cursor/scripts -> <tree>: bin/ hangs off the tree root, not off
+# cursor/ (see the same climb in setup.sh).
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"; ARCH="$(uname -m)"
+EXE_SUFFIX=""
+case "$OS" in
+  darwin*) OS=darwin ;;
+  linux*) OS=linux ;;
+  mingw*|msys*|cygwin*|windows_nt*) OS=windows; EXE_SUFFIX=.exe ;;
+esac
+case "$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
+BIN="${ROOT}/bin/clover-hook-${OS}-${ARCH}${EXE_SUFFIX}"
+if [ ! -x "$BIN" ] && [ -n "${CLOVER_HOOK_BIN:-}" ]; then
+  BIN="$CLOVER_HOOK_BIN"
 fi
 
 # track-plan-write fires on every file write, so it goes straight to the binary

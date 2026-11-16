@@ -101,11 +101,11 @@ verify_binary() {
   return 0
 }
 
-# A binary without should-review-plan cannot run the plan gate: it exits
-# "Unknown command", the shim fails open on every write, and the gate is
+# A binary without devin-review-write cannot run the plan gate: it exits
+# "Unknown command", the launcher fails open on every write, and the gate is
 # silently absent rather than visibly broken.
 has_plan_gate() {
-  printf '%s' "$("$1" 2>&1 || true)" | grep -q 'should-review-plan'
+  printf '%s' "$("$1" 2>&1 || true)" | grep -q 'devin-review-write'
 }
 
 # install_verified <src> — every deploy path goes through here. <src> is staged
@@ -124,7 +124,7 @@ install_verified() {
     return 1
   fi
   if ! has_plan_gate "$STAGED"; then
-    echo "clover(devin) setup.sh: ${ASSET_NAME} has no should-review-plan subcommand — the plan gate would never fire" >&2
+    echo "clover(devin) setup.sh: ${ASSET_NAME} has no devin-review-write subcommand — the plan gate would never fire" >&2
     rm -f "$STAGED"
     return 1
   fi

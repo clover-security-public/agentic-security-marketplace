@@ -10,6 +10,12 @@
           },
           {
             "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" session-baseline",
+            "shell": "bash",
+            "timeout": 15
+          },
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" check-update",
             "shell": "bash",
             "async": true,
@@ -40,7 +46,18 @@
               "timeout": 300
             }
           ]
-        }
+        },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" snapshot-working-tree",
+            "shell": "bash",
+            "timeout": 15
+          }
+        ]
+      }
     ],
     "UserPromptSubmit": [
       {
@@ -51,6 +68,44 @@
             "shell": "bash",
             "async": true,
             "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" mark-session-edit",
+            "shell": "bash",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" mark-session-edit",
+            "shell": "bash",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" stop-implementation-review",
+            "shell": "bash",
+            "timeout": 120
           }
         ]
       }

@@ -15,7 +15,7 @@
       },
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
       "category": "security",
-      "version": "0.1.107",
+      "version": "0.1.108",
       "homepage": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
       "hooks": {
         "SessionStart": [
@@ -25,6 +25,12 @@
                 "type": "command",
                 "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/setup.sh\"",
                 "shell": "bash"
+              },
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" session-baseline",
+                "shell": "bash",
+                "timeout": 15
               },
               {
                 "type": "command",
@@ -58,6 +64,17 @@
                 "timeout": 300
               }
             ]
+          },
+          {
+            "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" snapshot-working-tree",
+                "shell": "bash",
+                "timeout": 15
+              }
+            ]
           }
         ],
         "UserPromptSubmit": [
@@ -69,6 +86,44 @@
                 "shell": "bash",
                 "async": true,
                 "timeout": 20
+              }
+            ]
+          }
+        ],
+        "PostToolUse": [
+          {
+            "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" mark-session-edit",
+                "shell": "bash",
+                "timeout": 15
+              }
+            ]
+          }
+        ],
+        "PostToolUseFailure": [
+          {
+            "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" mark-session-edit",
+                "shell": "bash",
+                "timeout": 15
+              }
+            ]
+          }
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "bash \"${CLAUDE_PLUGIN_ROOT}/claude/scripts/run-hook.sh\" stop-implementation-review",
+                "shell": "bash",
+                "timeout": 120
               }
             ]
           }

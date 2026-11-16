@@ -1,39 +1,32 @@
 #!/usr/bin/env bash
 #
-# Clover Devin plugin — hook dispatcher / Claude-compat shim.
+# Clover Devin plugin — hook launcher for macOS and Linux.
 #
-# The bundled clover-hook binary speaks Claude Code's hook dialect. Devin CLI's
-# hooks are "Claude Code compatible" but not identical: Devin's tool names are
-# lowercase (write/edit/exec), and a blocking decision is {"decision":"block"}
-# rather than Claude's hookSpecificOutput.permissionDecision. This script
-# translates in both directions and self-locates everything, because Devin's
-# SessionStart cannot inject env into later hooks and exposes only
-# DEVIN_PROJECT_DIR.
+# The bundled clover-hook binary speaks Devin's hook protocol natively through
+# its devin-* subcommands: it parses the payload, reconstructs the Markdown a
+# write/edit/apply_patch/write_plan call produces, and prints a block in both
+# Devin's and Claude's dialect. Windows already calls it directly from
+# clover-hook.cmd; this script does the same, so every platform runs one code
+# path and needs nothing but bash and the binary. jq is deliberately not used:
+# a machine without it (a Devin cloud VM is not documented to ship it) would
+# otherwise allow every write unreviewed.
 #
-# Fail-open, matching the Claude/Cursor shims: any shim error allows the action.
+# What stays here is what only a shell can do before the binary runs: locate the
+# data dir, deploy the binary when SessionStart never ran, and source the
+# credentials file fleet tooling or configure.sh drops.
+#
+# Fail-open, matching the Claude/Cursor shims: any launcher error allows the
+# action, and only the binary ever prints a decision.
 #
 # Subcommands (wired in hooks.json / hooks.v1.json):
-#   log-prompt    UserPromptSubmit          -> audit the prompt to the server
-#   review-write  PreToolUse(write|edit|apply_patch) -> plan gate on .md writes
-#   discover <ev> any (debug)               -> log full stdin payload, allow
-#
-# ── Why the plan gate hangs off .md writes ──────────────────────────────────
-# Clover reviews plan text. Claude Code hands it over through the ExitPlanMode
-# tool input; Devin has no ExitPlanMode tool and its /plan approval is a UI
-# action, not a hook event. What Devin does expose is PreToolUse with a regex
-# matcher over tool_name, and write/edit carry file_path + content. That is the
-# same seam Claude Code's auto-mode uses: intercept the .md write and let the
-# server classify whether the file is a plan (should-review-plan). A plan the
-# agent is about to commit to disk is reviewed before it lands.
+#   log-prompt    UserPromptSubmit -> devin-log-prompt   (audit, setup notice)
+#   check-update  SessionStart     -> devin-check-update (self-update)
+#   review-write  PreToolUse       -> devin-review-write (plan gate)
+#   review-exec   PostToolUse(exec) -> devin-review-exec (exec plan gate)
+#   discover <ev> any (debug)      -> log full stdin payload, allow
 set -uo pipefail
 
 SUB="${1:-}"
-
-# Agent identity forwarded to the binary. agentName is free-text for audit rows;
-# codingAgent must match the server's CodingAgentType enum, which already has a
-# Devin member (Infrastructure/Entities/Enums/CodingAgentType.cs).
-AGENT_NAME="devin"
-CODING_AGENT="Devin"
 
 IN="$(cat 2>/dev/null || true)"
 
@@ -42,35 +35,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DATA="${CLOVER_DEVIN_DATA:-${HOME}/.devin/clover}"
 export CLAUDE_PLUGIN_ROOT="$DATA" CLAUDE_PLUGIN_DATA="$DATA"
 
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"; ARCH="$(uname -m)"
-case "$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
 BIN="${CLOVER_HOOK_BIN:-${DATA}/bin/clover-hook}"
-
-# Self-bootstrap: if the plugin was enabled mid-session, SessionStart never ran
-# and the binary was never deployed, so every hook would silently no-op. setup.sh
-# deploys from the bundled tree, so this stays off the network.
-if [ ! -x "$BIN" ] && [ -z "${CLOVER_HOOK_BIN:-}" ]; then
-  bash "${ROOT}/scripts/setup.sh" >/dev/null 2>&1 || true
-fi
 
 LOG="${CLOVER_LOG:-/tmp/clover-devin-hook.log}"
 dbg() { [ -n "${CLOVER_DEBUG:-}" ] && echo "clover(devin): $*" >&2 || true; }
-
-# Emit a block in every dialect Devin might read. Devin documents
-# {"decision":"block"}; the hookSpecificOutput form is Claude's. Emitting both
-# in one object costs nothing and means a dialect change cannot silently turn
-# the gate into a no-op.
-emit_block() {
-  jq -nc --arg r "$1" '{
-    decision: "block",
-    reason: $r,
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: $r
-    }
-  }'
-}
 
 # ── discovery: log the raw payload and always allow ─────────────────────────
 if [ "$SUB" = "discover" ]; then
@@ -81,161 +49,47 @@ if [ "$SUB" = "discover" ]; then
   exit 0
 fi
 
-# Self-heal the staged manifest through setup.sh rather than copying it here:
-# setup.sh stages the tree's channel-stamped .claude-plugin/plugin.json, and
-# devin's own .devin-plugin/plugin.json is an unstamped snapshot that would make
-# the binary report the wrong version on every audit row.
-if [ ! -f "$DATA/.claude-plugin/plugin.json" ]; then
+# Self-bootstrap: if the plugin was enabled mid-session, SessionStart never ran
+# and the binary was never deployed, so every hook would silently no-op. The
+# staged manifest is healed the same way: setup.sh stages the tree's
+# channel-stamped .claude-plugin/plugin.json, which the binary reports as its
+# version for a manual install. setup.sh deploys from the bundled tree, so this
+# stays off the network.
+if { [ ! -x "$BIN" ] && [ -z "${CLOVER_HOOK_BIN:-}" ]; } || [ ! -f "$DATA/.claude-plugin/plugin.json" ]; then
   bash "${ROOT}/scripts/setup.sh" >/dev/null 2>&1 || true
 fi
 chmod +x "$BIN" 2>/dev/null || true
 
-# Fail open if the essentials are missing.
-if ! command -v jq >/dev/null 2>&1 || [ ! -x "$BIN" ]; then
-  dbg "fail-open (missing jq or binary) bin=$BIN"
+if [ ! -x "$BIN" ]; then
+  dbg "fail-open (missing binary) bin=$BIN"
   exit 0
 fi
 
 # Credentials. Devin has no plugin-option prompt, so creds come from the
-# launcher's process environment as CLOVER_SECURITY_KURA_PLUGIN_* (verified:
-# hooks inherit it; config-file `env` blocks and hook-entry `env` maps are NOT
-# injected), or from ${DATA}/env.sh — written by configure.sh or dropped by
-# fleet tooling. The binary still accepts the legacy CAS_CLOVER_PLUGIN_* names,
-# so the guards here check both.
+# launcher's process environment as CLOVER_SECURITY_KURA_PLUGIN_* (hooks inherit
+# it; in cloud sessions a managed manifest entry's `env` block sets it), or from
+# ${DATA}/env.sh — written by configure.sh or dropped by fleet tooling. The
+# environment wins; the file is read only when the environment carries none.
+# The binary still accepts the legacy CAS_CLOVER_PLUGIN_* names, so the guard
+# checks both.
 clover_creds_present() {
   { [ -n "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}" ] || [ -n "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; } \
     && { [ -n "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:-}" ] || [ -n "${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}" ]; }
 }
 if ! clover_creds_present && [ -f "$DATA/env.sh" ]; then
+  set -a
   # shellcheck disable=SC1091
   . "$DATA/env.sh" 2>/dev/null || true
+  set +a
 fi
 
-# ── shared context forwarded to the binary ─────────────────────────────────
-cwd="${DEVIN_PROJECT_DIR:-$(printf '%s' "$IN" | jq -r '.cwd // empty' 2>/dev/null)}"
-session="$(printf '%s' "$IN" | jq -r '.session_id // .conversation_id // empty' 2>/dev/null)"
-# Prefer the channel-stamped manifest setup.sh stages in the data dir, then the
-# tree's own — both carry the version the running channel actually shipped.
-AGENT_VERSION="$(jq -r '.version // empty' "$DATA/.claude-plugin/plugin.json" 2>/dev/null)"
-[ -n "$AGENT_VERSION" ] || AGENT_VERSION="$(jq -r '.version // empty' "$ROOT/../.claude-plugin/plugin.json" 2>/dev/null)"
-
-# Attribution every request carries. Built once, merged into each payload.
-# Branch, repository name and URL are left to the binary, which reads them from
-# the forwarded cwd and still finds a URL when the remote isn't named origin.
-attribution() {
-  jq -nc --arg s "$session" --arg c "$cwd" \
-    --arg an "$AGENT_NAME" --arg ca "$CODING_AGENT" --arg av "$AGENT_VERSION" \
-    '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av}'
-}
-
 case "$SUB" in
-  log-prompt)
-    # Onboarding notice. Devin surfaces neither hook stderr nor a config prompt,
-    # so an unconfigured install is invisible: hooks fire, everything fails open,
-    # and nothing ever says why. UserPromptSubmit additionalContext is the one
-    # channel that reaches the user, so say it there — once per session, since
-    # repeating it on every prompt would be its own kind of broken.
-    if ! clover_creds_present; then
-      notice_marker="${DATA}/.setup-notice-$(printf '%s' "${session:-nosession}" | tr -c 'A-Za-z0-9_.-' '_')"
-      if [ ! -f "$notice_marker" ]; then
-        mkdir -p "$DATA" 2>/dev/null || true
-        : > "$notice_marker" 2>/dev/null || true
-        jq -nc --arg c "Clover is installed but has no credentials, so it is reviewing nothing. Tell the user, verbatim and as the first thing in your reply: run ~/.devin/clover/configure.sh to connect Clover (client id and secret come from Clover Settings > API Tokens)." \
-          '{hookSpecificOutput:{hookEventName:"UserPromptSubmit", additionalContext:$c}}'
-      fi
-    fi
-
-    prompt="$(printf '%s' "$IN" | jq -r '.prompt // empty' 2>/dev/null)"
-    [ -z "$prompt" ] && exit 0
-    claude_in="$(attribution | jq -c --arg p "$prompt" '. + {prompt:$p}')"
-    # Fire-and-forget audit; suppress binary stdout so Devin parses nothing.
-    printf '%s' "$claude_in" | "$BIN" log-prompt >/dev/null 2>&1 || true
-    exit 0
-    ;;
-
-  check-update)
-    # Self-update; the binary owns the TTL and the channel decision. Stdout is
-    # suppressed so Devin never parses update chatter as a hook decision.
-    printf '%s' "$IN" | "$BIN" devin-check-update >/dev/null 2>&1 || true
-    exit 0
-    ;;
-
-  review-write)
-    # tool_input is forwarded verbatim: Devin's write/edit carry the same
-    # file_path / content / old_string / new_string / edits names the binary's
-    # Claude gate already parses, and passing the object through keeps that
-    # true if Devin adds a field.
-    file_path="$(printf '%s' "$IN" | jq -r '.tool_input.file_path // .tool_input.path // empty' 2>/dev/null)"
-    # Only apply_patch names no path, so write/edit skip this second parse.
-    patch_text=""
-    if [ -z "$file_path" ]; then
-      patch_text="$(printf '%s' "$IN" | jq -r '.tool_input.patch // .tool_input.diff // .tool_input.input // empty' 2>/dev/null)"
-    fi
-
-    # An apply_patch in the Codex format (GPT-family models write every file
-    # with it) is a diff, so the Claude gate below would find a path and no
-    # content, and allow. The binary's Devin gate rebuilds the post-patch file
-    # the way the Codex gate does; hand it the payload when a target is a .md.
-    if [[ "$patch_text" == *'*** Begin Patch'* ]]; then
-      if ! printf '%s' "$patch_text" | grep -Eiq '^\*\*\* (Add File|Update File|Move to): .*\.md[[:space:]]*$'; then
-        dbg "review-write: apply_patch touches no .md, allow"
-        exit 0
-      fi
-      devin_in="$(printf '%s' "$IN" | jq -c --arg s "$session" --arg c "$cwd" '. + {session_id:$s, cwd:$c}' 2>/dev/null)"
-      [ -z "$devin_in" ] && exit 0
-      out="$(printf '%s' "$devin_in" | "$BIN" devin-review-write 2>/dev/null)"
-      reason="$(printf '%s' "$out" | jq -r 'if .decision == "block" then .reason // empty else empty end' 2>/dev/null)"
-      if [ -n "$reason" ]; then
-        dbg "review-write: blocking apply_patch"
-        emit_block "$reason"
-      fi
-      exit 0
-    fi
-
-    # A unified-diff apply_patch writes a file too, and the matcher covers it,
-    # but it carries a patch rather than a path — so recover the target from its
-    # +++ b/path header. Without this the gate fires and finds nothing, which
-    # reads as "allowed".
-    if [ -z "$file_path" ] && [ -n "$patch_text" ]; then
-      file_path="$(printf '%s' "$patch_text" | sed -n 's/^+++ b\///p' | head -1)"
-      dbg "review-write: recovered path from patch: ${file_path:-<none>}"
-    fi
-
-    case "$(printf '%s' "$file_path" | tr '[:upper:]' '[:lower:]')" in
-      *.md) ;;
-      "")
-        # No path anywhere in the payload: allow, but say so — a silently
-        # ungated write tool is exactly the failure this shim must not hide.
-        dbg "review-write: no file path in tool_input (tool=$(printf '%s' "$IN" | jq -r '.tool_name // "?"' 2>/dev/null)), allow"
-        exit 0
-        ;;
-      *) dbg "review-write: not a .md path=$file_path, allow"; exit 0 ;;
-    esac
-
-    tool_input="$(printf '%s' "$IN" | jq -c '.tool_input // {}' 2>/dev/null)"
-    [ -z "$tool_input" ] && exit 0
-    # Normalise the path onto file_path so the binary always finds it.
-    tool_input="$(printf '%s' "$tool_input" | jq -c --arg fp "$file_path" '. + {file_path:$fp}')"
-
-    claude_in="$(attribution | jq -c --argjson ti "$tool_input" '. + {tool_input:$ti}')"
-    out="$(printf '%s' "$claude_in" | "$BIN" should-review-plan 2>/dev/null)"
-
-    # The reason, only when the decision blocks.
-    reason="$(printf '%s' "$out" | jq -r '
-      (.hookSpecificOutput.permissionDecision // .decision // "allow") as $decision
-      | if $decision == "deny" or $decision == "block"
-        then .hookSpecificOutput.permissionDecisionReason // .reason // empty
-        else empty end' 2>/dev/null)"
-
-    if [ -n "$reason" ]; then
-      dbg "review-write: blocking path=$file_path"
-      emit_block "$reason"
-    fi
-    exit 0
-    ;;
-
-  *)
-    dbg "unknown subcommand: $SUB"
-    exit 0
-    ;;
+  log-prompt)   printf '%s' "$IN" | "$BIN" devin-log-prompt 2>/dev/null ;;
+  review-write) printf '%s' "$IN" | "$BIN" devin-review-write 2>/dev/null ;;
+  review-exec)  printf '%s' "$IN" | "$BIN" devin-review-exec 2>/dev/null ;;
+  # Self-update; the binary owns the TTL and the channel decision. Stdout is
+  # suppressed so Devin never parses update chatter as a hook decision.
+  check-update) printf '%s' "$IN" | "$BIN" devin-check-update >/dev/null 2>&1 ;;
+  *)            dbg "unknown subcommand: $SUB" ;;
 esac
+exit 0

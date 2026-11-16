@@ -146,19 +146,23 @@ assert_kept() {
 }
 
 for agent in claude devin; do
+  # The subcommand each setup.sh requires before it deploys a binary.
+  GATE=should-review-plan
+  [ "$agent" = devin ] && GATE=devin-review-write
+
   # --- a plugin update replaces the binary with a new file --------------------
-  new_tree "$agent" redeploy "1.0.0-local" "should-review-plan v1"
+  new_tree "$agent" redeploy "1.0.0-local" "$GATE v1"
   run_setup
   [ "$RC" = 0 ] || fail "first deploy exited $RC"
   [ "$(cat "$DATA/bin/.version" 2>/dev/null)" = "1.0.0-local" ] || fail "first deploy did not record its version"
   old_inode="$(inode_of "$DATA/bin/clover-hook")"
 
-  set_tree_version "1.1.0-local" "should-review-plan v2"
+  set_tree_version "1.1.0-local" "$GATE v2"
   run_setup
   assert_swapped 'v2' "1.1.0-local" "$old_inode" "redeploy"
 
   # --- a bundle that fails verification never touches the working binary ------
-  set_tree_version "1.2.0-local" "should-review-plan v3"
+  set_tree_version "1.2.0-local" "$GATE v3"
   echo "tampered" >> "$TREE/bin/$ASSET_NAME"
   run_setup
   [ "$RC" != 0 ] || fail "a bundled binary failing its checksum deployed without complaint"
@@ -169,19 +173,19 @@ for agent in claude devin; do
   if [ "$agent" = devin ]; then
     set_tree_version "1.2.0-local" "log-prompt only"
     run_setup
-    [ "$RC" != 0 ] || fail "a bundled binary with no should-review-plan deployed without complaint"
+    [ "$RC" != 0 ] || fail "a bundled binary with no $GATE deployed without complaint"
     assert_kept 'v2' "1.1.0-local" "a bundled binary with no plan gate"
   fi
 
   # --- a binary-mode checksum line still verifies ------------------------------
-  new_tree "$agent" binary-mode "1.0.0-local" "should-review-plan"
+  new_tree "$agent" binary-mode "1.0.0-local" "$GATE"
   printf '%s *%s\n' "$(sha256_of "$TREE/bin/$ASSET_NAME")" "$ASSET_NAME" > "$TREE/bin/checksums.sha256"
   run_setup
   [ "$RC" = 0 ] && [ -x "$DATA/bin/clover-hook" ] || fail "a '*'-prefixed checksum line did not verify"
 
   # --- a CRLF manifest still verifies --------------------------------------------
   # A Windows clone with core.autocrlf checks checksums.sha256 out with CRLF.
-  new_tree "$agent" crlf "1.0.0-local" "should-review-plan"
+  new_tree "$agent" crlf "1.0.0-local" "$GATE"
   printf '%s  %s\r\n' "$(sha256_of "$TREE/bin/$ASSET_NAME")" "$ASSET_NAME" > "$TREE/bin/checksums.sha256"
   run_setup
   [ "$RC" = 0 ] && [ -x "$DATA/bin/clover-hook" ] || fail "a CRLF checksum manifest did not verify"
@@ -195,17 +199,17 @@ for agent in claude devin; do
     GH_FAILS=""
     [ "$via" = curl ] && GH_FAILS=1
     RELEASE_ASSET=""
-    new_tree "$agent" "release-$via" "1.0.0" "should-review-plan v1"
+    new_tree "$agent" "release-$via" "1.0.0" "$GATE v1"
     run_setup
     old_inode="$(inode_of "$DATA/bin/clover-hook")"
 
-    publish_release "1.1.0" "should-review-plan v2"
+    publish_release "1.1.0" "$GATE v2"
     : > "$STUB_LOG"
     run_setup
     assert_swapped 'v2' "1.1.0" "$old_inode" "a release download via $via"
     [ "$(tail -n 1 "$STUB_LOG")" = "$via" ] || fail "the release download did not come through $via"
 
-    publish_release "1.2.0" "should-review-plan v3"
+    publish_release "1.2.0" "$GATE v3"
     echo "tampered" >> "$RELEASE_ASSET"
     run_setup
     [ "$RC" != 0 ] || fail "a release download via $via failing its checksum deployed without complaint"

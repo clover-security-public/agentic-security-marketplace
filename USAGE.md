@@ -15,12 +15,15 @@ written.
 | :-- | :-- | :-- | :-- |
 | `SessionStart` | — | Set the plugin up on this machine, checksum-verified | `false` |
 | `SessionStart` | — | Check for a newer plugin version and install it | `true` |
+| `SessionStart` | — | Pin the branch diff the session starts from (15 s) | `false` |
 | `PreToolUse` | `ExitPlanMode` | Review the plan; return any missing security requirements | `false` |
 | `PreToolUse` | `Edit\|Write\|MultiEdit` | For `.md` writes, check whether the file is a plan worth reviewing | `false` |
 | `UserPromptSubmit` | — | Enrich the session's security context with the prompt | `true` |
+| `Stop` | — | Submit the branch diff when new, wait up to 90 s, and return finished requirements to Claude as context (120 s; fails open) | `false` |
 
 **What leaves your machine:** the plan text, the content of `.md` files the
-agent writes, your prompts, and the repository, branch, and developer identity
+agent writes, your prompts, your branch's diff against its base (when a turn
+ends with new changes), and the repository, branch, and developer identity
 they belong to — sent to the Clover tenant you configure at install, and
 nowhere else. GitHub is contacted only for update checks.
 

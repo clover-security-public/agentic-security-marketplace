@@ -11,9 +11,9 @@ curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-secu
 The installer adds the public marketplace and plugin, verifies the downloaded
 binary checksum, stores credentials with mode `0600`, and writes an explicit
 installation-verification event to Clover. Codex requires one final trust step
-for an ordinary marketplace plugin: start Codex and, when it reports that four
+for an ordinary marketplace plugin: start Codex and, when it reports that nine
 hooks are new or changed, choose **Trust all and continue**. If the prompt does
-not appear, run `/hooks` and confirm all four Clover hooks are active. A changed
+not appear, run `/hooks` and confirm all nine Clover hooks are active. A changed
 hook definition is reviewed again because trust is bound to the definition
 hash.
 
@@ -89,7 +89,7 @@ For MDM, deploy these two payloads instead of executing the interactive path:
 3. Deliver each developer's `env.sh` through the organization's per-user secret
    mechanism with mode `0600`, then run `run-hook.sh codex-doctor` as that user.
 4. Pilot the profile on a managed device, restart Codex, and open `/hooks`.
-   Confirm the three Clover entries are labeled managed and active, with no
+   Confirm the seven Clover entries are labeled managed and active, with no
    per-user trust action. The repository test validates the rendered policy and
    installer layout; this device check validates that the deployed MDM profile
    reached Codex's active managed configuration layer.

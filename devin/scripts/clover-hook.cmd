@@ -45,6 +45,7 @@ set "SUB=devin-review-write"
 if /I "%~1"=="setup" set "SUB=devin-setup"
 if /I "%~1"=="log-prompt" set "SUB=devin-log-prompt"
 if /I "%~1"=="check-update" set "SUB=devin-check-update"
+if /I "%~1"=="review-exec" set "SUB=devin-review-exec"
 
 "%BIN%" %SUB%
 exit /b %ERRORLEVEL%

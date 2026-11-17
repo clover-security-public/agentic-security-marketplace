@@ -1,6 +1,6 @@
 {
   "name": "clover-for-security-teams",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "Ask Clover about your application's security posture from inside your coding agent. Run security reviews, surface threats and required controls, and design securely, answered in natural language.",
   "author": {
     "name": "Clover Security"
@@ -28,6 +28,9 @@
     "defaultPrompt": [
       "Ask Clover which open threats on my applications I should fix first."
     ],
-    "websiteURL": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents"
+    "websiteURL": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents",
+    "supportURL": "https://clover.security/support/",
+    "privacyPolicyURL": "https://clover.security/privacy-policy/",
+    "termsOfServiceURL": "https://clover.security/terms-of-use/"
   }
 }

@@ -28,6 +28,11 @@ set -uo pipefail
 
 SUB="${1:-}"
 
+# When this launcher started, so the binary's hook_duration log line can report
+# the time spent here before it ran (since_launch_ms). bash 5 has it to the
+# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
+export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
+
 IN="$(cat 2>/dev/null || true)"
 
 # ── locate root, data dir, binary (idempotent; independent of SessionStart) ──
@@ -71,10 +76,15 @@ fi
 # ${DATA}/env.sh — written by configure.sh or dropped by fleet tooling. The
 # environment wins; the file is read only when the environment carries none.
 # The binary still accepts the legacy CAS_CLOVER_PLUGIN_* names, so the guard
-# checks both.
+# checks both. The local Devin CLI applies the manifest `env` block without
+# resolving secrets, so a value still reading `secret:...` counts as absent and
+# env.sh is read on a developer's machine that shares the cloud manifest.
+clover_value_set() {
+  case "$1" in "" | secret:*) return 1 ;; esac
+}
 clover_creds_present() {
-  { [ -n "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}" ] || [ -n "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; } \
-    && { [ -n "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:-}" ] || [ -n "${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}" ]; }
+  { clover_value_set "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}" || clover_value_set "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}"; } \
+    && { clover_value_set "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET:-}" || clover_value_set "${CAS_CLOVER_PLUGIN_CLIENT_SECRET:-}"; }
 }
 if ! clover_creds_present && [ -f "$DATA/env.sh" ]; then
   set -a

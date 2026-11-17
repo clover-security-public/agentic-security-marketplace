@@ -7,6 +7,11 @@
 # binary must exit 0 — a non-zero exit would block the developer.
 set -uo pipefail
 
+# When this launcher started, so the binary's hook_duration log line can report
+# the time spent here before it ran (since_launch_ms). bash 5 has it to the
+# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
+export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"          # .../.kiro/clover
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$ROOT}"
 export CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA:-$ROOT}"

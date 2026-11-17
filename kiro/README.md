@@ -5,6 +5,18 @@ agentic IDE (and the Kiro CLI). Same binary and same `/Hooks/*` backend as the
 Claude Code and Cursor surfaces — only the event plumbing differs, and it lives
 in `cmd/clover-hook/agent_kiro.go`, not in these scripts.
 
+> **Two parts, installed separately.**
+>
+> - **The Kiro power** (this directory, imported from the Powers panel) is
+>   **guidance only**: two skills and steering that teach the agent to fold
+>   Clover's security requirements into a spec. On its own it reviews nothing,
+>   blocks nothing and sends nothing.
+> - **The Clover hooks** do the review and the task blocking. Kiro never runs
+>   hooks from a power, so the developer installs them with
+>   [`scripts/install.sh`](#install), machine-wide or per repository.
+>   **macOS and Linux only.** See [Security and data handling](#security-and-data-handling)
+>   for exactly what the installer changes and what the hooks send.
+
 ## Why Kiro fits
 
 Kiro writes its plan to disk as a **spec** —
@@ -206,10 +218,11 @@ diagnostics log — the adapter records the event name and the spec it resolved.
 ## Known constraints
 
 - **The IDE delivers an empty `prompt`**
-  ([kirodotdev/Kiro#7500](https://github.com/kirodotdev/Kiro/issues/7500)), so
-  prompt audit is a no-op there and posts nothing rather than a blank row; the
-  CLI delivers the real text. Spec review is unaffected — the plan is read from
-  disk.
+  ([kirodotdev/Kiro#7500](https://github.com/kirodotdev/Kiro/issues/7500)), and
+  spec sessions fire no `UserPromptSubmit` at all, so the prompt is read from
+  Kiro's own session store (`~/.kiro`) for the same session id — never another
+  session's; the CLI delivers the real text. Spec review is unaffected — the
+  plan is read from disk.
 - **Kiro does not close the hook's stdin.** A read to EOF hangs the turn until
   the hook times out, so Kiro's subcommands set `readsOneJSONValue` and stop at
   the end of the payload.
@@ -234,9 +247,12 @@ diagnostics log — the adapter records the event name and the spec it resolved.
 
 ## The power
 
-**This whole directory is the Kiro power**, in the Agent Plugins format:
-`plugin.json` at the root, documentation in `dev.kiro/INSTRUCTIONS.md`, and
-steering in `dev.kiro/steering/`. Kiro copies the whole directory when it
+**This whole directory is the Kiro power**, in the Agent Plugins 1.0.0 format:
+`plugin.json` at the root (only fields the 1.0.0 schema allows), the standard
+skills in `skills/clover-spec-review/` and `skills/clover-setup/`, and Kiro's
+client-specific files under the `dev.kiro/` namespace directory the
+specification reserves for them — documentation in `dev.kiro/INSTRUCTIONS.md`
+and steering in `dev.kiro/steering/`. Kiro copies the whole directory when it
 installs the power, so `hooks/` and `scripts/` travel along, inert — the hooks
 are installed by the one-liner above, run in the developer's own terminal so it
 can prompt for credentials. There is no `clover-power/` subdirectory and no
@@ -255,8 +271,8 @@ The beta ring's URL is the same path under `clover-security-marketplace-beta`;
 that repo is private, so the clone authenticates through your local git
 credentials.
 
-What the power adds: steering and instructions that teach the agent to treat
-Clover's requirements as part of the spec, and to hand the developer the
+What the power adds: skills, steering and instructions that teach the agent to
+treat Clover's requirements as part of the spec, and to hand the developer the
 install command when asked. It enforces nothing — the hooks do.
 
 It ships no MCP server. Kiro's remote-MCP auth against the Clover streaming
@@ -271,9 +287,52 @@ broken.
 - Product documentation:
   <https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura>
 
-The hooks send the developer's prompt, the spec under review and the repository
-identity to the Clover tenant configured in `env.sh`. Nothing else leaves the
-machine, and credentials never leave it at all.
+## Security and data handling
+
+The power itself sends nothing and changes nothing outside its own install
+directory. Everything below applies only once the developer runs the installer.
+
+- **Consent.** Before writing anything, the installer prints what the hooks
+  send and where, and asks the developer to confirm (`y`); any other answer
+  installs nothing. An unattended install (no terminal, or
+  `CLOVER_NO_PROMPT=1` from MDM or a script) prints the same notice and
+  proceeds, on the consent of whoever provisions it. A re-run over an existing
+  install is an update and is not asked again.
+- **Data sent to Clover.** The hooks send the developer's prompts to Kiro
+  (including those read from Kiro's local session store, see *Known
+  constraints*), each spec under review, and its context — repository name and
+  remote URL, branch, the git `user.email` and `user.name`, an optional
+  `USER_EMAIL` override set in `env.sh`, the Clover plugin version, the
+  operating system and Kiro's session id — to the Clover tenant configured in
+  `env.sh`. The hooks read no other application's files: not Claude Code's,
+  Cursor's or any other agent's account settings. The client id and secret are
+  used only to authenticate to that tenant's auth host. The same tenant receives hook
+  failure reports (error kind and message). The update check reads the version
+  manifest and binary from this public GitHub repository. Nothing else leaves
+  the machine.
+- **Credentials.** Prompted in the developer's own terminal, never in chat,
+  and written to `env.sh` with mode 0600; a repository install also adds it to
+  `.gitignore`.
+- **Files written.** Machine-wide: `~/.kiro/hooks/clover.json` and
+  `~/.kiro/clover/`. One repository: `<repo>/.kiro/hooks/clover.json`,
+  `<repo>/.kiro/clover/`, two `.gitignore` entries, and runtime state under
+  `~/.kiro/clover-state/`. Nothing else is modified.
+- **Scope.** A machine-wide install applies to every repository opened in Kiro
+  on that machine. To limit Clover to chosen repositories, use the
+  per-repository install instead.
+- **The compiled binary.** The hooks run a Go binary built from public source
+  (<https://github.com/clover-security-public/clover-hook-source>). The
+  installer and the auto-update both verify it against the published
+  `checksums.sha256` and refuse a mismatch or a missing manifest.
+- **Automatic updates.** On by default; see [Auto-update](#auto-update) to turn
+  them off.
+- **Removal.** Delete the files listed above (and uninstall the power from the
+  Powers panel). Nothing else needs undoing.
+- **Platforms.** macOS and Linux. Windows is not supported.
+
+## License
+
+AGPL-3.0-only. The full text is in [`LICENSE`](LICENSE).
 
 ## Auto-update
 
@@ -284,7 +343,9 @@ the binary downloads its own replacement, verifies it against the tree's
 fails open — the session always starts — and an install whose version cannot be
 read is never replaced.
 
-- **Public installs** update automatically from the public marketplace.
+- **Public installs** update automatically from the public marketplace. To opt
+  out, set `"enabled": false` on the `SessionStart` entry in the installed
+  `hooks/clover.json` and update by rerunning the installer instead.
 - **Beta installs** cannot self-download (the beta repo is private): they update
   by rerunning the installer, or by pointing at an internal mirror with
   `CLOVER_UPDATE_MANIFEST_URL` / `CLOVER_UPDATE_TREE_URL`.

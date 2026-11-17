@@ -4,8 +4,9 @@
 # assertions below defend the power's manifest and layout, and the installer's
 # refusal to install Clover in two scopes at once.
 #
-# The power is in the Agent Plugins format (plugin.json), whose documentation
-# and steering Kiro reads from dev.kiro/. A power that regressed to POWER.md
+# The power is in the Agent Plugins 1.0.0 format: a schema-valid plugin.json,
+# standard skills in skills/<name>/SKILL.md, and Kiro's client-specific
+# documentation and steering under dev.kiro/. A power that regressed to POWER.md
 # would still install and still look fine while Kiro ignored half of it, hence
 # the stale-path assertions.
 #
@@ -43,18 +44,50 @@ assert manifest.get("author", {}).get("name"), "plugin.json author needs a name"
 keywords = manifest.get("keywords") or []
 assert keywords and all(isinstance(k, str) and k for k in keywords), keywords
 
-# Kiro ignores unknown manifest fields with only a debug log, so a typo would
-# never surface at install time. This is Kiro's recognized set, not the
-# published agent-plugins 1.0.0 JSON schema: that schema sets
-# additionalProperties:false and omits displayName, while Kiro reads
-# displayName and AWS's own kiro-support power ships it. Kiro is the consumer,
-# so it wins — do not "fix" this by validating against the schema URL.
-recognized = {
-    "$schema", "name", "displayName", "version", "description", "author",
+# The manifest must validate against the schema it declares. The published
+# agent-plugins 1.0.0 schema sets additionalProperties:false and has no
+# displayName — Kiro reads one, but the powers registry review validates
+# against the schema and rejected the listing for it (2026-11). Client-specific
+# data belongs under extensions["<reverse-domain>"].
+allowed = {
+    "$schema", "name", "version", "description", "author",
     "homepage", "repository", "license", "keywords", "extensions",
 }
-unknown = set(manifest) - recognized
-assert not unknown, f"plugin.json has fields Kiro ignores: {sorted(unknown)}"
+unknown = set(manifest) - allowed
+assert not unknown, f"plugin.json has fields the Agent Plugins 1.0.0 schema forbids: {sorted(unknown)}"
+assert set(manifest["author"]) <= {"name", "email", "url"}, manifest["author"]
+for namespace, data in (manifest.get("extensions") or {}).items():
+    assert isinstance(data, dict), f"extensions[{namespace!r}] must be an object"
+
+# The listing must not claim enforcement the power alone does not deliver:
+# blocking needs the separately installed hooks.
+description = manifest["description"].lower()
+assert "install" in description and "separately" in description, manifest["description"]
+
+# --- the standard skills surface (Agent Plugins 1.0.0 §7, Kiro's loader) ---
+skills_dir = power / "skills"
+skills = sorted(p for p in skills_dir.iterdir() if (p / "SKILL.md").is_file())
+assert skills, "kiro/skills/ has no <name>/SKILL.md — the power needs a standard component"
+skill_name = re.compile(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?")
+for skill in skills:
+    text = (skill / "SKILL.md").read_text()
+    match = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    assert match, f"{skill.name}/SKILL.md has no front matter"
+    fields = {}
+    for line in match.group(1).splitlines():
+        key, _, value = line.partition(":")
+        fields[key.strip()] = value.strip()
+    name = fields.get("name", "")
+    # Kiro skips a skill whose name is invalid and warns when it differs from
+    # its directory name.
+    assert skill_name.fullmatch(name) and len(name) <= 64 and "--" not in name, name
+    assert name == skill.name, f"skill {skill.name} declares name {name!r}"
+    assert 1 <= len(fields.get("description", "")) <= 1024, f"{skill.name} description length"
+
+# The registry review requires the license to be stated in the README and shipped.
+readme = (power / "README.md").read_text()
+assert re.search(r"^## License\n\nAGPL-3\.0-only", readme, re.M), "README has no License section naming AGPL-3.0-only"
+assert (power / "LICENSE").read_text().lstrip().startswith("GNU AFFERO GENERAL PUBLIC LICENSE"), "kiro/LICENSE missing"
 PY
 
 # --- the power's own payload -------------------------------------------------
@@ -137,6 +170,54 @@ version=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["versio
   "$CLONE_REPO/.kiro/clover/.kiro-plugin/plugin.json")
 [ "$version" = "9.9.9-marketplace" ] \
   || { echo "ERROR: a marketplace clone install took its version from $version, not the marketplace manifest" >&2; exit 1; }
+
+# --- consent before anything is written --------------------------------------
+# AWS's publisher terms require a privacy notice and consent where user data is
+# collected. An unattended install prints the notice; a developer at a terminal
+# who does not answer y gets nothing written at all.
+NOTICE_REPO="$TEST_DIR/notice-repo"
+mkdir -p "$NOTICE_REPO"
+notice=$(HOME="$CLEAN_HOME" CLOVER_MARKETPLACE_URL="file://$TEST_DIR/does-not-exist" CLOVER_NO_PROMPT=1 \
+  bash "$CLONE/kiro/scripts/install.sh" "$NOTICE_REPO" 2>&1)
+for disclosed in "your prompts to Kiro" ".kiro/specs" "git user.email" "https://clover.security/privacy-policy/"; do
+  printf '%s' "$notice" | grep -qF "$disclosed" \
+    || { echo "ERROR: the unattended install's privacy notice does not mention '$disclosed'" >&2; exit 1; }
+done
+
+# The decline runs on a real pseudo-terminal, since the installer asks on
+# /dev/tty (under curl | bash, stdin is the script).
+DECLINE_REPO="$TEST_DIR/decline-repo"
+mkdir -p "$DECLINE_REPO"
+python3 - "$CLONE/kiro/scripts/install.sh" "$DECLINE_REPO" "$CLEAN_HOME" "$TEST_DIR" <<'PY'
+import os, pty, sys, time
+
+script, repo, home, test_dir = sys.argv[1:]
+pid, fd = pty.fork()
+if pid == 0:
+    os.environ.update(HOME=home, CLOVER_MARKETPLACE_URL=f"file://{test_dir}/does-not-exist")
+    os.environ.pop("CLOVER_NO_PROMPT", None)
+    os.execvp("bash", ["bash", script, repo])
+output = b""
+deadline = time.time() + 30
+answered = False
+while time.time() < deadline:
+    try:
+        chunk = os.read(fd, 4096)
+    except OSError:
+        break
+    if not chunk:
+        break
+    output += chunk
+    if not answered and b"Install Clover? [y/N]" in output:
+        os.write(fd, b"n\n")
+        answered = True
+_, status = os.waitpid(pid, 0)
+assert answered, f"the installer never asked for consent:\n{output.decode(errors='replace')}"
+assert b"not installed" in output, output.decode(errors="replace")
+assert os.waitstatus_to_exitcode(status) == 0, status
+PY
+[ ! -e "$DECLINE_REPO/.kiro" ] && ! grep -qs clover "$DECLINE_REPO/.gitignore" \
+  || { echo "ERROR: a declined install still wrote into $DECLINE_REPO" >&2; exit 1; }
 
 # --- the installer refuses to mix the two scopes -----------------------------
 # Kiro loads a repository's .kiro/hooks/ and the machine-wide ~/.kiro/hooks/

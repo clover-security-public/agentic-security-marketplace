@@ -6,6 +6,18 @@ TEST_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 bash -n "$ROOT/codex/scripts/install.sh" "$ROOT/codex/scripts/run-hook.sh" "$ROOT/codex/managed/run-hook.sh"
+# The OpenAI plugin directory requires these listing URLs, each HTTPS and at
+# most 1024 characters, under each Codex manifest's interface.
+python3 - "$ROOT/.codex-plugin/plugin.json" \
+  "$ROOT/clover-for-security-teams/.codex-plugin/plugin.json" \
+  "$ROOT/clover-for-developers/.codex-plugin/plugin.json" <<'PY'
+import json, pathlib, sys
+for manifest in sys.argv[1:]:
+    interface = json.loads(pathlib.Path(manifest).read_text())["interface"]
+    for key in ("websiteURL", "supportURL", "privacyPolicyURL", "termsOfServiceURL"):
+        url = interface.get(key) or ""
+        assert url.startswith("https://") and len(url) <= 1024, (manifest, key, url)
+PY
 python3 - "$ROOT/codex/hooks/hooks.json" <<'PY'
 import json, pathlib, sys
 hooks = json.loads(pathlib.Path(sys.argv[1]).read_text())["hooks"]

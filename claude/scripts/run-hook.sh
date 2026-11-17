@@ -4,6 +4,10 @@
 # skill-scoped hooks (Stop, PostToolUse defined inside SKILL.md frontmatter) do
 # not. When CLAUDE_PLUGIN_DATA is missing, fall back to the standard plugin
 # data directory under ~/.claude/plugins/data/.
+# When this launcher started, so the binary's hook_duration log line can report
+# the time spent here before it ran (since_launch_ms). bash 5 has it to the
+# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
+export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
 if [ -z "${CLAUDE_PLUGIN_DATA}" ]; then
     for candidate in "${HOME}/.claude/plugins/data"/*clover*; do
         if [ -d "${candidate}" ]; then

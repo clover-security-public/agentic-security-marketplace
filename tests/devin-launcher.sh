@@ -84,6 +84,12 @@ grep -q '^devin-review-write id=file-id ' "$CALLS" || fail "env.sh credentials d
 run_launcher review-write "$WRITE_PLAN" "${ENV_CREDS[@]}" >/dev/null
 grep -q '^devin-review-write id=env-id ' "$CALLS" || fail "env.sh overrode credentials the environment carried: $(cat "$CALLS")"
 
+: > "$CALLS"
+run_launcher review-write "$WRITE_PLAN" CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID=secret:personal:CLOVER_KURA_CLIENT_ID \
+  CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET=secret:personal:CLOVER_KURA_CLIENT_SECRET >/dev/null
+grep -q '^devin-review-write id=file-id ' "$CALLS" \
+  || fail "unresolved secret: references from the manifest kept env.sh from supplying credentials: $(cat "$CALLS")"
+
 out="$(printf '%s' "$WRITE_PLAN" | env -i PATH="$NO_JQ_PATH" HOME="$TEST_DIR" CLOVER_HOOK_BIN="$TEST_DIR/missing" \
   CLOVER_DEVIN_DATA="$DATA" "$BASH_BIN" "$LAUNCHER" review-write)"
 [ -z "$out" ] || fail "a missing binary printed a decision: $out"

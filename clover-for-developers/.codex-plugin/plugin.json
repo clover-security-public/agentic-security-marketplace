@@ -1,6 +1,6 @@
 {
   "name": "clover-for-developers",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Clover's security assistant for developers. Kick off a security/design review on the change you are working on, get security feedback on a design document (a link to it), and read back the reviews you have access to — answered in natural language, right inside your coding agent.",
   "author": {
     "name": "Clover Security"
@@ -28,6 +28,9 @@
     "defaultPrompt": [
       "Ask Clover to run a security review on the change I am working on."
     ],
-    "websiteURL": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents"
+    "websiteURL": "https://docs.cloversec.io/product-guides/securing-agentic-development/connecting-clover-to-coding-agents",
+    "supportURL": "https://clover.security/support/",
+    "privacyPolicyURL": "https://clover.security/privacy-policy/",
+    "termsOfServiceURL": "https://clover.security/terms-of-use/"
   }
 }

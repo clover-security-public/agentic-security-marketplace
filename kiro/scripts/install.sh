@@ -81,6 +81,43 @@ if [ -z "${CLOVER_ALLOW_DUPLICATE_INSTALL:-}" ]; then
   fi
 fi
 
+# Consent, before anything is written. The notice states what the hooks send
+# and where; a developer at a terminal must answer y. An unattended install (no
+# terminal, or CLOVER_NO_PROMPT=1 from MDM or a script) prints the notice and
+# proceeds: whoever provisions it consents for the organisation. A re-run over
+# an existing install (env.sh present) is an update and is not asked again.
+if [ -n "$TARGET" ]; then
+  SCOPE="the repository $TARGET"
+else
+  SCOPE="every repository you open in Kiro on this machine"
+fi
+NOTICE="Clover for Kiro installs hooks that run in $SCOPE.
+They send to your organisation's Clover tenant:
+  - your prompts to Kiro, including those Kiro keeps in its local session store
+  - each spec Kiro writes under .kiro/specs, for security review
+  - the repository name and remote URL, the branch, and your git user.email
+    and user.name
+  - the Clover plugin version, your operating system and the Kiro session id
+  - failure reports when a hook errors
+and download Clover updates from GitHub (checksum-verified).
+Privacy policy: https://clover.security/privacy-policy/"
+if [ ! -f "$DEST/clover/env.sh" ]; then
+  if [ -z "${CLOVER_NO_PROMPT:-}" ] && { exec 3<>/dev/tty; } 2>/dev/null; then
+    CONSENT=""
+    {
+      printf '%s\n\nInstall Clover? [y/N] ' "$NOTICE" >&3
+      IFS= read -r CONSENT <&3 || CONSENT=""
+    } 2>/dev/null || true
+    exec 3>&- 2>/dev/null || true
+    case "$CONSENT" in
+      y|Y|yes|YES|Yes) ;;
+      *) printf 'clover: not installed - nothing was written\n'; exit 0 ;;
+    esac
+  else
+    printf '%s\n' "$NOTICE"
+  fi
+fi
+
 mkdir -p "$DEST/clover/bin"
 
 # The binary goes first, so an install refused here wires up no hooks. It is

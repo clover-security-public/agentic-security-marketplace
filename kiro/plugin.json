@@ -1,9 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "clover-security",
-  "displayName": "Clover Security",
-  "version": "0.1.108",
-  "description": "Clover reviews every spec before implementation starts, hands back the security requirements it is missing, and blocks the task until they are covered.",
+  "version": "0.1.109",
+  "description": "Guidance for working with Clover's security review of Kiro specs: skills and steering that teach the agent to fold the security requirements Clover returns into the spec and the code. The review and the task blocking run as Clover hooks that the developer installs separately with the Clover installer (macOS and Linux); this power on its own reviews and blocks nothing.",
   "author": {
     "name": "Clover Security",
     "url": "https://clover.security"

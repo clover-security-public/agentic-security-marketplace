@@ -13,6 +13,10 @@
 # here rather than assumed.
 
 SUB="${1:-}"
+# When this launcher started, so the binary's hook_duration log line can report
+# the time spent here before it ran (since_launch_ms). bash 5 has it to the
+# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
+export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
 case "$SUB" in
   setup|check-update|log-prompt|review-plan|should-review-plan) ;;
   *) echo "clover(copilot): unknown subcommand '${SUB}', fail-open" >&2; exit 0 ;;

@@ -26,6 +26,11 @@ set -uo pipefail
 
 SUB="${1:-}"
 
+# When this launcher started, so the binary's hook_duration log line can report
+# the time spent here before it ran (since_launch_ms). bash 5 has it to the
+# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
+export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
+
 # Agent identity forwarded to the binary on every invocation. agentName is
 # free-text for audit rows; codingAgent must match the server's
 # CodingAgentType enum (Infrastructure/Entities/Enums/CodingAgentType.cs).
@@ -39,11 +44,41 @@ CODING_AGENT="Cursor"
 # user input, just our own deny reason echoing back.
 CLOVER_FOLLOWUP_PREFIX="Clover security review rejected the plan."
 
+# The prompt waits for log-prompt, so it gets PROMPT_BUDGET seconds from here:
+# the credential search below and the prompt audit both end by then, and the
+# prompt goes through without Clover (fail open) if either runs out.
+HOOK_START="$(date +%s)"
+PROMPT_BUDGET=5
+
 IN="$(cat 2>/dev/null || true)"
 
 deny_pretool()  { jq -nc --arg r "$1" '{permission:"deny", user_message:$r, agent_message:$r}'; }
 continue_ok()   { printf '{"continue":true}\n'; }
 safe_default()  { case "$SUB" in log-prompt) continue_ok ;; *) : ;; esac; }
+
+# capped <seconds> <command...> runs command and kills it if it outlives
+# <seconds>; callers treat a killed command as one that found nothing. macOS
+# ships no `timeout`, hence the watchdog. The watchdog holds none of the
+# caller's pipes, and is stopped (with its sleep) once the command ends, so a
+# cut command never leaves a process behind holding Cursor's stdout open.
+capped() {
+  local secs="$1" pid dog rc
+  shift
+  "$@" &
+  pid=$!
+  (
+    trap 'kill "$s" 2>/dev/null; exit 0' TERM
+    sleep "$secs" &
+    s=$!
+    wait "$s" && kill -TERM "$pid" 2>/dev/null
+  ) </dev/null >/dev/null 2>&1 &
+  dog=$!
+  wait "$pid"
+  rc=$?
+  kill -TERM "$dog" 2>/dev/null
+  wait "$dog" 2>/dev/null
+  return "$rc"
+}
 
 # Locate the binary in this launcher's own tree. The CLOVER_HOOK_BIN that
 # sessionStart injects is only a fallback, for a tree that ships no binary (a
@@ -83,11 +118,31 @@ fi
 if [ -z "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}" ] && [ -z "${CAS_CLOVER_PLUGIN_CLIENT_ID:-}" ]; then
   # Creds come from the "Clover MCP" server entry, which may live in the user's
   # own ~/.cursor/mcp.json or in any plugin's bundled .mcp.json (how the
-  # team-pushed clover-mcp plugin ships them). Scan every mcp.json / .mcp.json
-  # under ~/.cursor and take the first "Clover MCP" entry with a non-empty client
-  # id AND secret; entries with missing/blank creds are skipped so the search
-  # keeps going. CLIENT_ID/CLIENT_SECRET/AUTH_URL live under "auth" (snake/camel/
-  # bare fallbacks); "url" is the server origin; no auth url -> auth.cloversec.io.
+  # team-pushed clover-mcp plugin ships them; that plugin is why the lookup
+  # searches at all). Try ~/.cursor/mcp.json, then every mcp.json / .mcp.json
+  # in Cursor's team-managed tree (~/.cursor/managed/team_<id>/, which today
+  # holds only team hooks — searched so a team-managed MCP config is found if
+  # Cursor ever puts one there) and its plugin tree, and take the first
+  # "Clover MCP" entry with a non-empty client id AND secret; entries with
+  # missing/blank creds are skipped so the search keeps going.
+  # CLIENT_ID/CLIENT_SECRET/AUTH_URL live under "auth" (snake/camel/bare
+  # fallbacks); "url" is the server origin; no auth url -> auth.cloversec.io.
+  #
+  # The search must stay bounded: it runs on every prompt and every stop, and
+  # the prompt waits for it. It used to walk all of ~/.cursor, which holds a full
+  # checkout of every repo under ~/.cursor/worktrees — 35s a call on a customer
+  # laptop, twice per turn (marketplace/tests/cursor-mcp-lookup.sh). Plugin
+  # configs sit at most seven levels below plugins/ (the deepest is
+  # marketplaces/github.com/<org>/<repo>/<sha>/<plugin>/.mcp.json); the depth
+  # cap and the .git/node_modules prune keep a large plugin from costing much.
+  #
+  # Once a plugin config has supplied the credentials, its path (never the
+  # secret) is remembered in the state dir, so later hooks read that one file
+  # instead of searching. The file is re-read every time, so a rotated secret is
+  # picked up at once; a path that is gone (a plugin update moves it) or no
+  # longer carries credentials falls back to the search, which remembers the new
+  # one. ~/.cursor/mcp.json is still tried first, and a remembered path outside
+  # ~/.cursor/managed and ~/.cursor/plugins is ignored.
   _pick='
     def pick($o; $ks): reduce $ks[] as $k (null; if . == null then $o[$k] else . end);
     ((.mcpServers // {})["Clover MCP"] // empty) | . as $v | ($v.auth // {}) as $a | {
@@ -96,13 +151,48 @@ if [ -z "${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}" ] && [ -z "${CAS_CLOVER_PLU
         auth:   (pick($a;["AUTH_URL","auth_url","authUrl"]) // pick($v;["AUTH_URL","auth_url","authUrl"]) // ""),
         url:    ($v.url // "")
       } | select((.id // "") != "" and (.secret // "") != "") | [ .id, .secret, .auth, .url ] | @tsv'
-  _row=""
-  while IFS= read -r _mcp; do
+  # creds_from <file> sets _row from <file>'s "Clover MCP" entry; false if none.
+  creds_from() {
+    _row=""
+    [ -f "$1" ] || return 1
     # jq can't parse Cursor's JSONC; retry once with // line-comments stripped.
-    _row="$(jq -r "$_pick" "$_mcp" 2>/dev/null)"
-    [ -n "$_row" ] || _row="$(sed -E 's@^[[:space:]]*//.*$@@; s@[[:space:]]//.*$@@' "$_mcp" | jq -r "$_pick" 2>/dev/null)"
-    [ -n "$_row" ] && break
-  done < <(find "$HOME/.cursor" -type f \( -name 'mcp.json' -o -name '.mcp.json' \) 2>/dev/null | sort)
+    _row="$(jq -r "$_pick" "$1" 2>/dev/null)"
+    [ -n "$_row" ] || _row="$(sed -E 's@^[[:space:]]*//.*$@@; s@[[:space:]]//.*$@@' "$1" | jq -r "$_pick" 2>/dev/null)"
+    [ -n "$_row" ]
+  }
+  _managed="$HOME/.cursor/managed"
+  _plugins="$HOME/.cursor/plugins"
+  _remembered_file="${CLOVER_STATE_DIR:-$HOME/.cursor/clover}/mcp-config-path"
+  _remembered="$(head -n 1 "$_remembered_file" 2>/dev/null || true)"
+  case "$_remembered" in
+    */../*) _remembered="" ;;
+    "$_managed"/* | "$_plugins"/*) ;;
+    *) _remembered="" ;;
+  esac
+  if creds_from "$HOME/.cursor/mcp.json"; then
+    :
+  elif [ -n "$_remembered" ] && creds_from "$_remembered"; then
+    :
+  else
+    while IFS= read -r _mcp; do
+      if creds_from "$_mcp"; then
+        # Remember the path atomically, so a concurrent hook reads the old
+        # line or the new one, never half of one.
+        if [ "$_mcp" != "$_remembered" ] && mkdir -p "$(dirname "$_remembered_file")" 2>/dev/null; then
+          printf '%s\n' "$_mcp" > "$_remembered_file.$$" 2>/dev/null &&
+            mv -f "$_remembered_file.$$" "$_remembered_file" 2>/dev/null ||
+            rm -f "$_remembered_file.$$" 2>/dev/null
+        fi
+        break
+      fi
+    done < <(
+      # A missing tree is skipped (find reports it on the discarded stderr and
+      # still searches the other). The search normally takes milliseconds; the
+      # cap is the backstop for a disk or an endpoint scanner that stalls it.
+      capped "$PROMPT_BUDGET" find "$_managed" "$_plugins" -maxdepth 8 \( -name .git -o -name node_modules \) -prune \
+        -o -type f \( -name 'mcp.json' -o -name '.mcp.json' \) -print 2>/dev/null | sort
+    )
+  fi
   if [ -n "$_row" ]; then
     CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID="$(printf '%s' "$_row" | cut -f1)"
     CLOVER_SECURITY_KURA_PLUGIN_CLIENT_SECRET="$(printf '%s' "$_row" | cut -f2)"
@@ -309,7 +399,9 @@ $deny_reasons"
         esac
       fi
     fi
-    find "$FUPS" -type f -mmin +240 -delete 2>/dev/null || true
+    # Housekeeping the prompt need not wait for: detached from Cursor's pipes,
+    # and capped so a stalled disk cannot leave it running.
+    capped "$PROMPT_BUDGET" find "$FUPS" -type f -mmin +240 -delete </dev/null >/dev/null 2>&1 &
     case "$prompt" in
       "$CLOVER_FOLLOWUP_PREFIX"*) continue_ok; exit 0 ;;
     esac
@@ -318,7 +410,11 @@ $deny_reasons"
       '{session_id:$s, cwd:$c, agentName:$an, codingAgent:$ca, agentVersion:$av, prompt:$p} + $rp')"
     # Fire-and-forget audit; binary stdout suppressed so our protocol JSON
     # below is the only thing Cursor parses. stderr passes through to Cursor.
-    printf '%s' "$claude_in" | "$BIN" log-prompt >/dev/null || true
+    # CLOVER_HOOK_DEADLINE ends every backend request the binary makes, the
+    # token fetch included, PROMPT_BUDGET seconds after this hook started; a
+    # request it cuts fails open (net.go hookDeadline).
+    printf '%s' "$claude_in" | CLOVER_HOOK_DEADLINE="$(( HOOK_START + PROMPT_BUDGET ))" \
+      "$BIN" log-prompt >/dev/null || true
     continue_ok
     ;;
 

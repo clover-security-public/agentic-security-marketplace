@@ -109,6 +109,14 @@ An org admin sets it up once, with no developer machine involved:
 Changes apply from the next session; running sessions keep what they loaded at
 start. The enterprise scope (`secret:enterprise:`) covers every org at once.
 
+Each reference must name the scope its secret lives in. A `secret:personal:`
+reference to a secret stored at org scope resolves to nothing, and Devin leaves
+the variable unset in the hook process. The local Devin CLI applies the same
+`env` block without resolving secrets, so the hooks receive the literal
+`secret:...` string. The launcher and the binary treat such a value as unset, so
+a developer machine that shares the manifest still reads `env.sh` from
+`configure.sh`.
+
 **Verified in live cloud sessions (2026-11-16, personal install, beta
 channel):** the plugin installs a few seconds after the session starts;
 `DEVIN_PLUGIN_ROOT` resolves, so `SessionStart` deployed the binary and ran the
@@ -116,8 +124,14 @@ update check; the machine has `jq` and bash; `UserPromptSubmit` fires and the
 missing-credentials notice reaches the agent verbatim. Because the plugin loads
 after the session starts, the **first prompt is not logged**. The agent has no
 file-write tool and writes every file through `exec`, which is why the **Exec
-gate** exists. Still open: whether the manifest `env` reaches the hook process
-(those sessions had no secrets set). The Devin API integration (`IntegrationType.Devin`)
+gate** exists. On 0.1.109-beta.1 the gate was verified end to end up to the
+review call: each `exec` starts from `$HOME`, a heredoc plan is intercepted
+before the command runs at its real path, `PostToolUse` fires after every
+command, a plan written by `python3` is caught as `md changed by exec`, and a
+heredoc plan is not reviewed twice. Still open, because those sessions had no
+Clover credentials and every review stopped at `auth failed`: whether the
+manifest `env` reaches the hook process, and how a `PostToolUse` deny reaches
+the agent (the restore itself is covered by `agent_devin_exec_test.go`). The Devin API integration (`IntegrationType.Devin`)
 is separate: it reports usage (sessions, users, AI-written lines) and reviews no
 plans. Customer-facing steps live in clover-docs, under *Connecting Kura To
 Coding Agents → Devin → Cloud sessions*.
@@ -244,6 +258,14 @@ not tracked; such a workspace keeps only the heredoc half. A background command
 (`run_in_background`) gets no snapshot, because it keeps writing after its
 `PostToolUse`. Devin documents `command` in `exec`'s `tool_input` but no tool
 use id, so a call's two halves pair on the command and its directory.
+
+Where a command starts: an explicit `workdir`, otherwise the payload's
+directory, except on a Devin cloud machine (`/opt/.devin` exists). A live cloud
+session showed each `exec` call runs in a fresh shell that starts in `$HOME`
+(`/home/ubuntu`) while the payload names `/home/ubuntu/repos`, so there the gate
+starts from `$HOME`. A heredoc's relative path also follows any `cd` earlier in
+the same command. A heredoc plan reviewed before the command is recognised by
+its content afterwards, wherever its path resolved.
 
 Devin exports `DEVIN_PLUGIN_ROOT` (and `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PROJECT_DIR`)
 to plugin hooks; `PLUGIN_ROOT` from the public docs is **not** set. Hook commands

@@ -15,7 +15,7 @@
       },
       "description": "Ship secure code at agent speed. Clover silently reviews every plan, surfaces missing security requirements, and folds them into the work before a single line is written — no questions, no detours.",
       "category": "security",
-      "version": "0.1.109",
+      "version": "0.1.110",
       "homepage": "https://docs.cloversec.io/product-guides/kura-securing-agentic-development/about-kura",
       "hooks": {
         "SessionStart": [
@@ -66,7 +66,7 @@
             ]
           },
           {
-            "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+            "matcher": "Bash",
             "hooks": [
               {
                 "type": "command",
@@ -105,7 +105,7 @@
         ],
         "PostToolUseFailure": [
           {
-            "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+            "matcher": "Bash",
             "hooks": [
               {
                 "type": "command",

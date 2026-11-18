@@ -34,6 +34,7 @@ payload="\$(cat)"
 printf '%s id=%s payload=%s\n' "\$1" "\${CLOVER_SECURITY_KURA_PLUGIN_CLIENT_ID:-}" "\$payload" >> "$CALLS"
 case "\$1" in
   devin-review-write) printf '{"decision":"block","reason":"needs rate limiting"}\n' ;;
+  devin-stop-implementation-review) printf '{"decision":"block","reason":"needs input validation"}\n' ;;
   devin-check-update) printf 'update chatter\n' ;;
 esac
 EOF
@@ -64,6 +65,19 @@ grep -qF "devin-review-write id=env-id payload=$WRITE_PLAN" "$CALLS" \
 : > "$CALLS"
 run_launcher review-exec '{"tool_name":"exec","session_id":"s1","tool_input":{"command":"ls"}}' "${ENV_CREDS[@]}" >/dev/null
 grep -q '^devin-review-exec ' "$CALLS" || fail "review-exec did not reach devin-review-exec"
+
+for sub in session-baseline snapshot-working-tree mark-session-edit; do
+  : > "$CALLS"
+  run_launcher "$sub" '{"tool_name":"exec","session_id":"s1","tool_input":{"command":"ls"}}' "${ENV_CREDS[@]}" >/dev/null
+  grep -q "^devin-$sub " "$CALLS" || fail "$sub did not reach devin-$sub: $(cat "$CALLS")"
+done
+
+STOP='{"session_id":"s1","hook_event_name":"Stop","stop_hook_active":false}'
+: > "$CALLS"
+out="$(run_launcher stop-implementation-review "$STOP" "${ENV_CREDS[@]}")"
+grep -qF "devin-stop-implementation-review id=env-id payload=$STOP" "$CALLS" \
+  || fail "stop-implementation-review did not reach devin-stop-implementation-review with the payload intact: $(cat "$CALLS")"
+[ "$out" = '{"decision":"block","reason":"needs input validation"}' ] || fail "the binary's Stop block was not relayed unchanged: $out"
 
 : > "$CALLS"
 run_launcher log-prompt '{"prompt":"hi","session_id":"s1"}' "${ENV_CREDS[@]}" >/dev/null

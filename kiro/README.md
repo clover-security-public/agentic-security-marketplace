@@ -94,7 +94,10 @@ Kiro's own open Windows hook issues (kirodotdev/Kiro#8264).
 
 One command, once per machine — it covers every repository via Kiro's global
 `~/.kiro/hooks/` path, downloads only the binary for the current platform
-(checksum-verified), and prompts for the two credential values:
+(checksum-verified), and asks first. It prints what the hooks send and asks
+`Install Clover? [y/N]`; any answer but `y` installs nothing (see
+[Security and data handling](#security-and-data-handling)). Then it prompts for
+the credentials:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/clover-security-public/agentic-security-marketplace/main/kiro/scripts/install.sh | bash
@@ -124,10 +127,11 @@ instead of downloading. `CLOVER_MARKETPLACE_URL` overrides the download base
 
 ```
 ~/.kiro/
-  hooks/clover.json              # the three hooks above, absolute-path commands
+  hooks/clover.json              # the four hooks above, absolute-path commands
   clover/
     scripts/run-hook.sh          # resolves the platform binary, loads env.sh, exec
     bin/clover-hook-<os>-<arch>
+    .kiro-plugin/plugin.json     # version manifest, so activity names the release
     env.sh                       # credentials — prompted, 0600, never committed
 ```
 

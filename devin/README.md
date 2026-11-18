@@ -109,32 +109,31 @@ An org admin sets it up once, with no developer machine involved:
 Changes apply from the next session; running sessions keep what they loaded at
 start. The enterprise scope (`secret:enterprise:`) covers every org at once.
 
-Each reference must name the scope its secret lives in. A `secret:personal:`
-reference to a secret stored at org scope resolves to nothing, and Devin leaves
-the variable unset in the hook process. The local Devin CLI applies the same
-`env` block without resolving secrets, so the hooks receive the literal
-`secret:...` string. The launcher and the binary treat such a value as unset, so
-a developer machine that shares the manifest still reads `env.sh` from
-`configure.sh`.
+Each reference must name the scope its secret lives in. A reference to a secret
+that does not exist in that scope (`secret:personal:` for an org secret) resolves
+to nothing, and Devin leaves the variable unset in the hook process.
 
-**Verified in live cloud sessions (2026-11-16, personal install, beta
-channel):** the plugin installs a few seconds after the session starts;
-`DEVIN_PLUGIN_ROOT` resolves, so `SessionStart` deployed the binary and ran the
-update check; the machine has `jq` and bash; `UserPromptSubmit` fires and the
-missing-credentials notice reaches the agent verbatim. Because the plugin loads
-after the session starts, the **first prompt is not logged**. The agent has no
-file-write tool and writes every file through `exec`, which is why the **Exec
-gate** exists. On 0.1.109-beta.1 the gate was verified end to end up to the
-review call: each `exec` starts from `$HOME`, a heredoc plan is intercepted
-before the command runs at its real path, `PostToolUse` fires after every
-command, a plan written by `python3` is caught as `md changed by exec`, and a
-heredoc plan is not reviewed twice. Still open, because those sessions had no
-Clover credentials and every review stopped at `auth failed`: whether the
-manifest `env` reaches the hook process, and how a `PostToolUse` deny reaches
-the agent (the restore itself is covered by `agent_devin_exec_test.go`). The Devin API integration (`IntegrationType.Devin`)
+The org install also reaches every member's local Devin CLI, and the CLI applies
+the same `env` block without resolving secrets: it sets the variable to the
+literal `secret:...` string, over whatever the developer's environment held. The
+launcher and binary treat that literal as unset and read `env.sh`, so on a
+member's machine the credentials must come from `env.sh` (`configure.sh`, or an
+MDM that writes the file). `CLOVER_SECURITY_KURA_PLUGIN_*` environment variables
+an MDM pushes are overwritten there by the manifest's literal.
+
+**Verified in live cloud sessions (2026-11-17, org install, 0.1.109-beta.9):**
+with the org secrets referenced as `secret:org:`, a heredoc plan was blocked
+before the command ran, Devin received the requirements and rewrote the plan,
+and the rewrite was approved. A plan written by `python3` was reviewed after the
+command; on a deny the file was restored to its previous content, the
+requirements reached the agent as a hook message after the tool result, and the
+rewrite was approved. The plugin loads a few seconds after the session starts,
+so the **first prompt is not logged** and a file written in those first seconds
+is not reviewed. The agent has no file-write tool and writes every file through
+`exec`, which is why the **Exec gate** exists. The Devin API integration (`IntegrationType.Devin`)
 is separate: it reports usage (sessions, users, AI-written lines) and reviews no
 plans. Customer-facing steps live in clover-docs, under *Connecting Kura To
-Coding Agents → Devin → Cloud sessions*.
+Coding Agents → Devin → Organization rollout*.
 
 ### Local validation
 
@@ -379,6 +378,33 @@ and the gate is silently absent rather than visibly broken.
 Every hook path fails open: a missing or unverifiable binary, auth
 failure, an unparseable payload, or a server timeout all allow the write. The
 gate blocks only on an explicit deny from the server.
+
+## Developer attribution
+
+Devin's hook payloads carry no account, so every hook sends the developer's
+Devin account first, as the `devin_account` identity, then the
+`CLOVER_SECURITY_KURA_PLUGIN_USER_EMAIL` setting and git's `user.email`.
+
+- **Local CLI / Desktop.** The CLI keeps no account on disk
+  (`~/.local/share/devin/credentials.toml` holds only an API key); the
+  signed-in user comes from Devin's server through `devin auth status`
+  (~0.5s). The `SessionStart` hook (`session-baseline`) runs `devin auth status
+  --process-model in-process` (never starting Devin's background daemon) and
+  caches the email in `~/.devin/clover/devin-account.json`. It asks again when
+  `credentials.toml` changes (a new login or a logout) or the answer is a day
+  old. No `devin` on `PATH`, a failing or hung CLI (5s cap) and a logged-out CLI
+  all leave attribution to the fallbacks.
+- **Cloud.** A cloud machine has no `devin` CLI. Devin writes the session
+  requester's identity to `/opt/.devin/git_author` at session start (its own
+  git hook sources it to author commits); every hook reads `GIT_AUTHOR_EMAIL`
+  from it as text, never running it. Verified on a live cloud session
+  (2026-11-18). A bot requester (`GIT_DEVIN_EMAIL`) is dropped.
+
+The machine's global git identity there is the Devin bot
+(`…+devin-ai-integration[bot]@users.noreply.github.com`). It is sent only when
+no other address exists (no `git_author`, or a bot requester), because the
+server rejects a request with no email outright, which would turn the review
+off for that session.
 
 ## Debugging
 

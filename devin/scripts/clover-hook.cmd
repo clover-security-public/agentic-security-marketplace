@@ -46,6 +46,10 @@ if /I "%~1"=="setup" set "SUB=devin-setup"
 if /I "%~1"=="log-prompt" set "SUB=devin-log-prompt"
 if /I "%~1"=="check-update" set "SUB=devin-check-update"
 if /I "%~1"=="review-exec" set "SUB=devin-review-exec"
+if /I "%~1"=="session-baseline" set "SUB=devin-session-baseline"
+if /I "%~1"=="snapshot-working-tree" set "SUB=devin-snapshot-working-tree"
+if /I "%~1"=="mark-session-edit" set "SUB=devin-mark-session-edit"
+if /I "%~1"=="stop-implementation-review" set "SUB=devin-stop-implementation-review"
 
 "%BIN%" %SUB%
 exit /b %ERRORLEVEL%

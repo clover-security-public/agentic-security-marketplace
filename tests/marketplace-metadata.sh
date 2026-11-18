@@ -138,10 +138,36 @@ assert_matcher() {
 for target in "claude/hooks/hooks.json:.hooks" "$MANIFEST:.plugins[] | select(.name == \"clover\") | .hooks"; do
   assert_hook "${target%%:*}" "${target#*:}" SessionStart session-baseline 15
   assert_hook "${target%%:*}" "${target#*:}" Stop stop-implementation-review 120
-  for event_and_subcommand in PreToolUse:snapshot-working-tree PostToolUse:mark-session-edit PostToolUseFailure:mark-session-edit; do
-    assert_hook "${target%%:*}" "${target#*:}" "${event_and_subcommand%%:*}" "${event_and_subcommand#*:}" 15
-    assert_matcher "${target%%:*}" "${target#*:}" "${event_and_subcommand%%:*}" "${event_and_subcommand#*:}" "Edit|Write|MultiEdit|NotebookEdit|Bash"
+  # Only Bash is fingerprinted around the call; an edit tool's file is in its
+  # payload, and a failed one changed nothing.
+  for event_subcommand_matcher in "PreToolUse:snapshot-working-tree:Bash" \
+    "PostToolUse:mark-session-edit:Edit|Write|MultiEdit|NotebookEdit|Bash" "PostToolUseFailure:mark-session-edit:Bash"; do
+    IFS=: read -r event sub matcher <<<"$event_subcommand_matcher"
+    assert_hook "${target%%:*}" "${target#*:}" "$event" "$sub" 15
+    assert_matcher "${target%%:*}" "${target#*:}" "$event" "$sub" "$matcher"
   done
+done
+
+# --- devin: implementation review wiring, in both hook files -----------------
+# A Devin plugin install loads the plugin-root hooks.json; a manual install
+# under .devin/clover loads devin/hooks/hooks.v1.json. Both must carry every
+# hook, with the same events, matchers and timeouts, differing only in root.
+devin_hook_shape='[to_entries[] | .key as $event | .value[] | (.matcher // "") as $matcher | .hooks[] |
+  {event: $event, matcher: $matcher, sub: (.command | split("\" ") | last), timeout: (.timeout // 0)}] | sort_by(.event, .sub)'
+if [ "$(jq -c "$devin_hook_shape" hooks.json)" != "$(jq -c "$devin_hook_shape" devin/hooks/hooks.v1.json)" ]; then
+  echo "ERROR: hooks.json and devin/hooks/hooks.v1.json register different Devin hooks" >&2
+  FAILED=1
+fi
+devin_edit_tools="write|edit|apply_patch|notebook_edit|exec"
+for event_and_subcommand in SessionStart:session-baseline:30: PreToolUse:snapshot-working-tree:30:exec \
+  PostToolUse:mark-session-edit:30:$devin_edit_tools Stop:stop-implementation-review:120:; do
+  IFS=: read -r event sub timeout matcher <<<"$event_and_subcommand"
+  found=$(jq -c --arg event "$event" --arg sub "$sub" --argjson timeout "$timeout" --arg matcher "$matcher" \
+    "$devin_hook_shape"' | map(select(.event == $event and .sub == $sub and .timeout == $timeout and .matcher == $matcher)) | length' hooks.json)
+  if [ "$found" != "1" ]; then
+    echo "ERROR: hooks.json: want one $event $sub hook (timeout $timeout, matcher \"$matcher\"), got $found" >&2
+    FAILED=1
+  fi
 done
 
 [ -f USAGE.md ] || { echo "ERROR: USAGE.md is missing — README.md links it" >&2; FAILED=1; }

@@ -14,9 +14,10 @@
 
 SUB="${1:-}"
 # When this launcher started, so the binary's hook_duration log line can report
-# the time spent here before it ran (since_launch_ms). bash 5 has it to the
-# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
-export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
+# the time spent here before it ran (since_launch_ms). Only bash 5 has the clock
+# for it ($EPOCHREALTIME); macOS's bash 3.2 reports nothing rather than fork date
+# on every hook for a value up to a second high.
+if [ -n "${EPOCHREALTIME:-}" ]; then export CLOVER_HOOK_LAUNCHED_AT="$EPOCHREALTIME"; else unset CLOVER_HOOK_LAUNCHED_AT; fi
 case "$SUB" in
   setup|check-update|log-prompt|review-plan|should-review-plan) ;;
   *) echo "clover(copilot): unknown subcommand '${SUB}', fail-open" >&2; exit 0 ;;

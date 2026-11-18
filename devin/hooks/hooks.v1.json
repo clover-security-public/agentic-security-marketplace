@@ -10,6 +10,11 @@
           "type": "command",
           "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" check-update",
           "timeout": 90
+        },
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" session-baseline",
+          "timeout": 30
         }
       ]
     }
@@ -25,6 +30,16 @@
     }
   ],
   "PreToolUse": [
+    {
+      "matcher": "exec",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" snapshot-working-tree",
+          "timeout": 30
+        }
+      ]
+    },
     {
       "matcher": "write|edit|apply_patch|write_plan|exec",
       "hooks": [
@@ -44,6 +59,27 @@
           "type": "command",
           "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" review-exec",
           "timeout": 300
+        }
+      ]
+    },
+    {
+      "matcher": "write|edit|apply_patch|notebook_edit|exec",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" mark-session-edit",
+          "timeout": 30
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "\"${CLOVER_DEVIN_ROOT:-${DEVIN_PROJECT_DIR}/.devin/clover}/scripts/clover-hook.cmd\" stop-implementation-review",
+          "timeout": 120
         }
       ]
     }

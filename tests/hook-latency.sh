@@ -146,12 +146,19 @@ printf -- '---\nname: Login\noverview: Add a login endpoint\n---\n\n# Plan\n\nPO
   > "$CURSOR_DIR/plans/login_1234.plan.md"
 timed "review-plan-stop" cursor_hook review-plan-stop "$STOP"
 
-# The binary logs each invocation's time, including the launcher's own share.
-# Cursor's macOS/Linux launcher sets no CLAUDE_PLUGIN_DATA for the shared
-# log-prompt, so that line lands in the temp dir's log.
-if ! grep -q 'hook_duration cmd=log-prompt agent="cursor" coding_agent="Cursor" .*since_launch_ms=' \
-  "$TEST_DIR/.clover-hook.log" 2>/dev/null; then
-  echo "FAIL: no hook_duration line with since_launch_ms for Cursor's log-prompt" >&2
+# The binary logs each invocation's time, including the launcher's own share
+# where the launcher's bash has $EPOCHREALTIME (bash 5; macOS's bash 3.2 has
+# none, and reports no share rather than a wrong one). Cursor's macOS/Linux
+# launcher sets no CLAUDE_PLUGIN_DATA for the shared log-prompt, so that line
+# lands in the temp dir's log.
+cursor_prompt_line='hook_duration cmd=log-prompt agent="cursor" coding_agent="Cursor" '
+if bash -c '[ -n "${EPOCHREALTIME:-}" ]'; then
+  if ! grep -q "$cursor_prompt_line.*since_launch_ms=" "$TEST_DIR/.clover-hook.log" 2>/dev/null; then
+    echo "FAIL: no hook_duration line with since_launch_ms for Cursor's log-prompt" >&2
+    FAILED=1
+  fi
+elif ! grep "$cursor_prompt_line" "$TEST_DIR/.clover-hook.log" 2>/dev/null | grep -qv since_launch_ms; then
+  echo "FAIL: no hook_duration line without since_launch_ms for Cursor's log-prompt under a bash without EPOCHREALTIME" >&2
   FAILED=1
 fi
 

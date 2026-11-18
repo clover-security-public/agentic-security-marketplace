@@ -117,13 +117,13 @@ fi
 # apply_patch writes files too, and plan mode writes the plan with write_plan;
 # leaving either out of the matcher is a hole the gate cannot see, because the
 # hook simply never fires for those writes.
-if [ "$(jq -r '.PreToolUse[0].matcher' "$ROOT/hooks.json")" != "write|edit|apply_patch|write_plan|exec" ]; then
+if [ "$(jq -r '[.PreToolUse[] | select(any(.hooks[]; .command | endswith("\" review-write"))) | .matcher] | join(",")' "$ROOT/hooks.json")" != "write|edit|apply_patch|write_plan|exec" ]; then
   echo "ERROR: Devin plan gate does not cover write|edit|apply_patch|write_plan|exec" >&2
   exit 1
 fi
 # Devin cloud writes every file through exec: a write the command does not
 # spell out is caught after it by review-exec, so its PostToolUse must stay.
-if [ "$(jq -r '.PostToolUse[0] | "\(.matcher) \(.hooks[0].command)"' "$ROOT/hooks.json")" != 'exec "${CLOVER_DEVIN_ROOT:-${DEVIN_PLUGIN_ROOT}/devin}/scripts/clover-hook.cmd" review-exec' ]; then
+if [ "$(jq -r '[.PostToolUse[] | select(any(.hooks[]; .command | endswith("\" review-exec"))) | "\(.matcher) \(.hooks[0].command)"] | join(",")' "$ROOT/hooks.json")" != 'exec "${CLOVER_DEVIN_ROOT:-${DEVIN_PLUGIN_ROOT}/devin}/scripts/clover-hook.cmd" review-exec' ]; then
   echo "ERROR: Devin exec PostToolUse gate is missing or does not dispatch review-exec" >&2
   exit 1
 fi

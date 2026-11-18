@@ -48,7 +48,7 @@
           ]
         },
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
@@ -87,7 +87,7 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",

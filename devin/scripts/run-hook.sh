@@ -23,15 +23,20 @@
 #   check-update  SessionStart     -> devin-check-update (self-update)
 #   review-write  PreToolUse       -> devin-review-write (plan gate)
 #   review-exec   PostToolUse(exec) -> devin-review-exec (exec plan gate)
+#   session-baseline           SessionStart -> devin-session-baseline (implementation review)
+#   snapshot-working-tree      PreToolUse   -> devin-snapshot-working-tree
+#   mark-session-edit          PostToolUse  -> devin-mark-session-edit
+#   stop-implementation-review Stop         -> devin-stop-implementation-review
 #   discover <ev> any (debug)      -> log full stdin payload, allow
 set -uo pipefail
 
 SUB="${1:-}"
 
 # When this launcher started, so the binary's hook_duration log line can report
-# the time spent here before it ran (since_launch_ms). bash 5 has it to the
-# microsecond; macOS's bash 3.2 falls back to whole seconds from date.
-export CLOVER_HOOK_LAUNCHED_AT="${EPOCHREALTIME:-$(date +%s)}"
+# the time spent here before it ran (since_launch_ms). Only bash 5 has the clock
+# for it ($EPOCHREALTIME); macOS's bash 3.2 reports nothing rather than fork date
+# on every hook for a value up to a second high.
+if [ -n "${EPOCHREALTIME:-}" ]; then export CLOVER_HOOK_LAUNCHED_AT="$EPOCHREALTIME"; else unset CLOVER_HOOK_LAUNCHED_AT; fi
 
 IN="$(cat 2>/dev/null || true)"
 
@@ -97,6 +102,8 @@ case "$SUB" in
   log-prompt)   printf '%s' "$IN" | "$BIN" devin-log-prompt 2>/dev/null ;;
   review-write) printf '%s' "$IN" | "$BIN" devin-review-write 2>/dev/null ;;
   review-exec)  printf '%s' "$IN" | "$BIN" devin-review-exec 2>/dev/null ;;
+  session-baseline | snapshot-working-tree | mark-session-edit | stop-implementation-review)
+                printf '%s' "$IN" | "$BIN" "devin-$SUB" 2>/dev/null ;;
   # Self-update; the binary owns the TTL and the channel decision. Stdout is
   # suppressed so Devin never parses update chatter as a hook decision.
   check-update) printf '%s' "$IN" | "$BIN" devin-check-update >/dev/null 2>&1 ;;
